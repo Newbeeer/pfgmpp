@@ -189,7 +189,7 @@ You can train new models using `train.py`. For example:
 
 ```.bash
 # Train DDPM++ model for class-conditional CIFAR-10 using 8 GPUs
-CUDA_VISIBLE_DEVICES=7 torchrun --standalone --nproc_per_node=1 train.py --outdir=training-runs --name test --data=../data/cifar10/cifar10-32x32.zip --cond=0 --arch=ncsnpp
+CUDA_VISIBLE_DEVICES=4,5,6,7 torchrun --standalone --nproc_per_node=4 train.py --outdir=training-runs --name pfgm_ncsnpp --data=datasets/cifar10-32x32.zip --cond=0 --arch=ncsnpp --pfgm=1 --rbatch=4096
 ```
 
 The above example uses the default batch size of 512 images (controlled by `--batch`) that is divided evenly among 8 GPUs (controlled by `--nproc_per_node`) to yield 64 images per GPU. Training large models may run out of GPU memory; the best way to avoid this is to limit the per-GPU batch size, e.g., `--batch-gpu=32`. This employs gradient accumulation to yield the same results as using full per-GPU batches. See [`python train.py --help`](./docs/train-help.txt) for the full list of options.
