@@ -168,7 +168,7 @@ class EDMLoss:
             return gt_direction
 
     def pfgm_target(self, perturbed_samples_vec, samples_full):
-        print("check shape:", perturbed_samples_vec.shape, samples_full.shape)
+        #print("check shape:", perturbed_samples_vec.shape, samples_full.shape)
         real_samples_vec = torch.cat(
             (samples_full.reshape(len(samples_full), -1), torch.zeros((len(samples_full), 1)).to(samples_full.device)),
             dim=1)
