@@ -65,7 +65,6 @@ def edm_sampler(
 
             # Euler step.
             x_drift, z_drift = net(x_hat, t_hat, class_labels)
-
             x_drift = x_drift.view(len(x_drift), -1).to(torch.float64)
             z_drift = z_drift.to(torch.float64) * np.sqrt(D)
             # Predicted normalized Poisson field
@@ -80,12 +79,12 @@ def edm_sampler(
 
             # Apply 2nd order correction.
             if i < num_steps - 1:
-                x_drift_new, z_drift_new = net(x_next, t_next, class_labels).to(torch.float64)
+                x_drift_new, z_drift_new = net(x_next, t_next, class_labels)
                 x_drift_new = x_drift_new.view(len(x_drift_new), -1).to(torch.float64)
                 z_drift_new = z_drift_new.to(torch.float64) * np.sqrt(D)
                 # Predicted normalized Poisson field
                 v_new = torch.cat([x_drift_new, z_drift_new[:, None]], dim=1)
-                dt_dz_new = 1 / (v[:, -1] + 1e-5)
+                dt_dz_new = 1 / (v_new[:, -1] + 1e-5)
                 dx_dt_new = v_new[:, :-1].view(len(x_drift_new), net.img_channels,
                                        net.img_resolution,
                                        net.img_resolution)
