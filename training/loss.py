@@ -145,8 +145,8 @@ class EDMLoss:
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
+            #sigma = torch.ones_like(sigma) * 5
             sigma = torch.ones_like(sigma) * 5
-            # sigma = torch.ones_like(sigma) * 0.01
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma
@@ -165,7 +165,6 @@ class EDMLoss:
             #print(target.norm(p=2, dim=1).mean())
         elif pfgmv2:
             target = self.pfgmv2_target(r.squeeze(), y+n, ref_images)
-            print("target shape:", target.shape)
             target = target.view_as(y)
         else:
             target = y
@@ -193,14 +192,14 @@ class EDMLoss:
             # diff = - (perturbed_samples_vec.unsqueeze(1) - samples_full_vec)
             # gt_direction2 = torch.sum(distance * diff, dim=1)
             target = samples_full_vec.unsqueeze(0).repeat(len(perturbed_samples), 1, 1)
-            #print("stf weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
+            print("stf weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
 
             gt_direction = torch.sum(weights * target, dim=1)
-            # perturbed_samples_vec = torch.cat((perturbed_samples_vec,
-            #                                    torch.ones((len(perturbed_samples), 1)).to(perturbed_samples_vec.device) * sigmas.unsqueeze(1) * np.sqrt(self.D))
-            #                                   , dim=1)
-            #self.pfgm_target(perturbed_samples_vec, samples_full)
-            #self.pfgmv2_target(sigmas * np.sqrt(self.D), perturbed_samples, samples_full)
+            perturbed_samples_vec = torch.cat((perturbed_samples_vec,
+                                               torch.ones((len(perturbed_samples), 1)).to(perturbed_samples_vec.device) * sigmas.unsqueeze(1) * np.sqrt(self.D))
+                                              , dim=1)
+            self.pfgm_target(perturbed_samples_vec, samples_full)
+            self.pfgmv2_target(sigmas * np.sqrt(self.D), perturbed_samples, samples_full)
             return gt_direction
 
     def pfgm_target(self, perturbed_samples_vec, samples_full):
@@ -218,7 +217,7 @@ class EDMLoss:
         distance = distance[:, :, None]
         # Normalize the coefficients (effectively multiply by c(\tilde{x}) in the paper)
         coeff = distance / (torch.sum(distance, dim=1, keepdim=True) + 1e-7)
-        #print("pfgm weights:", torch.sort(coeff.squeeze(), dim=1, descending=True)[0][:, 0])
+        print("pfgm weights:", torch.sort(coeff.squeeze(), dim=1, descending=True)[0][:, 0])
         diff = - (perturbed_samples_vec.unsqueeze(1) - real_samples_vec)
 
         # Calculate empirical Poisson field (N+D dimension in the augmented space)
