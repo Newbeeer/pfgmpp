@@ -692,6 +692,8 @@ class EDMPrecond(torch.nn.Module):
             c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
             c_noise = sigma.log() / 4
 
+            x_in = c_in * x
+            print(x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
             F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
             assert F_x.dtype == dtype
             D_x = c_skip * x + c_out * F_x.to(torch.float32)

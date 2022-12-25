@@ -48,7 +48,9 @@ def training_loop(
     device              = torch.device('cuda'),
     stf                 = False,
     pfgm                = False,
+    pfgmv2              = False,
     rbatch              = 4096,
+    D = 128,
 ):
     # Initialize.
     start_time = time.time()
@@ -60,7 +62,7 @@ def training_loop(
     torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = False
 
     # Select batch size per GPU.
-    if stf or pfgm:
+    if stf or pfgm or pfgmv2:
         batch_gpu_total = rbatch
         batch_gpu = batch_gpu_total
         num_accumulation_rounds = 1
@@ -95,6 +97,7 @@ def training_loop(
     # Setup optimizer.
     dist.print0('Setting up optimizer...')
     loss_fn = dnnlib.util.construct_class_by_name(**loss_kwargs) # training.loss.(VP|VE|EDM)Loss
+    loss_fn.D = D
     optimizer = dnnlib.util.construct_class_by_name(params=net.parameters(), **optimizer_kwargs) # subclass of torch.optim.Optimizer
     augment_pipe = dnnlib.util.construct_class_by_name(**augment_kwargs) if augment_kwargs is not None else None # training.augment.AugmentPipe
     ddp = torch.nn.parallel.DistributedDataParallel(net, device_ids=[device], broadcast_buffers=False)
@@ -140,7 +143,7 @@ def training_loop(
                 images, labels = next(dataset_iterator)
                 images = images.to(device).to(torch.float32) / 127.5 - 1
                 labels = labels.to(device)
-                if stf or pfgm:
+                if stf or pfgm or pfgmv2:
                     # divide the mini-batch by the device number
                     # per-device 128 samples
                     # stf = 1024
@@ -151,7 +154,7 @@ def training_loop(
                     batch_labels = labels
 
                 # B * C * H * W
-                loss = loss_fn(net=ddp, images=batch_images, labels=batch_labels, augment_pipe=augment_pipe, stf=stf, pfgm=pfgm, ref_images=images)
+                loss = loss_fn(net=ddp, images=batch_images, labels=batch_labels, augment_pipe=augment_pipe, stf=stf, pfgm=pfgm, pfgmv2=pfgmv2, ref_images=images)
                 training_stats.report('Loss/loss', loss)
                 loss.sum().mul(loss_scaling / (batch_size // dist.get_world_size())).backward()
 
