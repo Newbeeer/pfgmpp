@@ -19,6 +19,7 @@ import PIL.Image
 import dnnlib
 from torch_utils import distributed as dist
 from torchvision.utils import make_grid, save_image
+from torch.distributions import Beta
 import glob
 
 #----------------------------------------------------------------------------
@@ -27,37 +28,114 @@ import glob
 def edm_sampler(
     net, latents, class_labels=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
-    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0,
+    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, pfgm=False, pfgmv2=False, D=128
 ):
-    # Adjust noise levels based on what's supported by the network.
-    sigma_min = max(sigma_min, net.sigma_min)
-    sigma_max = min(sigma_max, net.sigma_max)
 
-    # Time step discretization.
-    step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
-    t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
-    t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]) # t_N = 0
+    if pfgm:
+        # Adjust noise levels based on what's supported by the network.
+        N = net.img_channels * net.img_resolution * net.img_resolution
+        r_min = 0.55 / np.sqrt(N / (D - 2 - 1))
+        r_max = 2500 / np.sqrt(N / (D - 2 - 1))
 
-    # Main sampling loop.
-    x_next = latents.to(torch.float64) * t_steps[0]
-    for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])): # 0, ..., N-1
-        x_cur = x_next
+        # Time step discretization.
+        step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
+        t_steps = (r_max ** (1 / rho) + step_indices / (num_steps - 1) * (
+                    r_min ** (1 / rho) - r_max ** (1 / rho))) ** rho
+        t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
-        # Increase noise temporarily.
-        gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-        t_hat = net.round_sigma(t_cur + gamma * t_cur)
-        x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
 
-        # Euler step.
-        denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
-        d_cur = (x_hat - denoised) / t_hat
-        x_next = x_hat + (t_next - t_hat) * d_cur
+        samples_norm = torch.sqrt(latents) * sigma_max * np.sqrt(D)
+        samples_norm = samples_norm.view(len(samples_norm), -1)
+        # Uniformly sample the angle direction
+        gaussian = torch.randn(len(latents), N).to(samples_norm.device)
+        unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+        # Radius times the angle direction
+        init_samples = unit_gaussian * samples_norm
+        latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
+        print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
+        x_next = latents.to(torch.float64)
 
-        # Apply 2nd order correction.
-        if i < num_steps - 1:
-            denoised = net(x_next, t_next, class_labels).to(torch.float64)
-            d_prime = (x_next - denoised) / t_next
-            x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
+        # Main sampling loop.
+        for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
+            x_cur = x_next
+
+            # Increase noise temporarily.
+            t_hat = net.round_sigma(t_cur)
+            x_hat = x_cur
+
+            # Euler step.
+            x_drift, z_drift = net(x_hat, t_hat, class_labels)
+
+            x_drift = x_drift.view(len(x_drift), -1).to(torch.float64)
+            z_drift = z_drift.to(torch.float64) * np.sqrt(D)
+            # Predicted normalized Poisson field
+            v = torch.cat([x_drift, z_drift[:, None]], dim=1)
+            dt_dz = 1 / (v[:, -1] + 1e-5)
+            dx_dt = v[:, :-1].view(len(x_drift), net.img_channels,
+                                   net.img_resolution,
+                                   net.img_resolution)
+            dx_dz = dx_dt * dt_dz.view(-1, *([1] * len(x_drift.size()[1:])))
+            d_cur = dx_dz
+            x_next = x_hat + (t_next - t_hat) * d_cur
+
+            # Apply 2nd order correction.
+            if i < num_steps - 1:
+                x_drift_new, z_drift_new = net(x_next, t_next, class_labels).to(torch.float64)
+                x_drift_new = x_drift_new.view(len(x_drift_new), -1).to(torch.float64)
+                z_drift_new = z_drift_new.to(torch.float64) * np.sqrt(D)
+                # Predicted normalized Poisson field
+                v_new = torch.cat([x_drift_new, z_drift_new[:, None]], dim=1)
+                dt_dz_new = 1 / (v[:, -1] + 1e-5)
+                dx_dt_new = v_new[:, :-1].view(len(x_drift_new), net.img_channels,
+                                       net.img_resolution,
+                                       net.img_resolution)
+                dx_dz_new = dx_dt_new * dt_dz_new.view(-1, *([1] * len(x_drift_new.size()[1:])))
+                d_prime = dx_dz_new
+                x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
+    else:
+        # Adjust noise levels based on what's supported by the network.
+        sigma_min = max(sigma_min, net.sigma_min)
+        sigma_max = min(sigma_max, net.sigma_max)
+
+        # Time step discretization.
+        step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
+        t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (
+                    sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
+        t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
+
+        if pfgmv2:
+            N = net.img_channels * net.img_resolution * net.img_resolution
+            samples_norm = torch.sqrt(latents) * sigma_max * np.sqrt(D)
+            samples_norm = samples_norm.view(len(samples_norm), -1)
+            # Uniformly sample the angle direction
+            gaussian = torch.randn(len(latents), N).to(samples_norm.device)
+            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            # Radius times the angle direction
+            init_samples = unit_gaussian * samples_norm
+            latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
+            print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
+            x_next = latents.to(torch.float64)
+        else:
+            x_next = latents.to(torch.float64) * t_steps[0]
+        # Main sampling loop.
+        for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
+            x_cur = x_next
+
+            # Increase noise temporarily.
+            gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
+            t_hat = net.round_sigma(t_cur + gamma * t_cur)
+            x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
+
+            # Euler step.
+            denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
+            d_cur = (x_hat - denoised) / t_hat
+            x_next = x_hat + (t_next - t_hat) * d_cur
+
+            # Apply 2nd order correction.
+            if i < num_steps - 1:
+                denoised = net(x_next, t_next, class_labels).to(torch.float64)
+                d_prime = (x_next - denoised) / t_next
+                x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
 
     return x_next
 
@@ -185,10 +263,27 @@ class StackedRandomGenerator:
     def __init__(self, device, seeds):
         super().__init__()
         self.generators = [torch.Generator(device).manual_seed(int(seed) % (1 << 32)) for seed in seeds]
+        self.seeds = seeds
+        self.device = device
 
     def randn(self, size, **kwargs):
         assert size[0] == len(self.generators)
         return torch.stack([torch.randn(size[1:], generator=gen, **kwargs) for gen in self.generators])
+
+    def rand_beta_prime(self, size, N=3072, D=128, **kwargs):
+        # sample from beta_prime (N/2, D/2)
+        assert size[0] == len(self.seeds)
+        seed_init = torch.initial_seed()
+        beta_list = []
+        beta_gen = Beta(torch.FloatTensor([N / 2.]), torch.FloatTensor([D / 2.]))
+        for seed in self.seeds:
+            torch.manual_seed(seed)
+            beta_list.append(beta_gen.sample())
+
+        samples_norm = torch.cat(beta_list, dim=0).to(kwargs['device'])
+        inverse_beta = samples_norm / (1 - samples_norm)
+        torch.manual_seed(seed_init)
+        return inverse_beta
 
     def randn_like(self, input):
         return self.randn(input.shape, dtype=input.dtype, layout=input.layout, device=input.device)
@@ -240,7 +335,11 @@ def parse_int_list(s):
 @click.option('--schedule',                help='Ablate noise schedule sigma(t)', metavar='vp|ve|linear',           type=click.Choice(['vp', 've', 'linear']))
 @click.option('--scaling',                 help='Ablate signal scaling s(t)', metavar='vp|none',                    type=click.Choice(['vp', 'none']))
 
-def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, device=torch.device('cuda'), **sampler_kwargs):
+@click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
+
+def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, aug_dim, device=torch.device('cuda'), **sampler_kwargs):
     """Generate random images using the techniques described in the paper
     "Elucidating the Design Space of Diffusion-Based Generative Models".
 
@@ -259,7 +358,9 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     dist.init()
     num_batches = ((len(seeds) - 1) // (max_batch_size * dist.get_world_size()) + 1) * dist.get_world_size()
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
+    print("all batch shape:", all_batches.shape)
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
+    print("rank batch shape:", rank_batches.shape)
 
     # Rank 0 goes first.
     if dist.get_rank() != 0:
@@ -304,9 +405,17 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             if batch_size == 0:
                 continue
 
+            N = net.img_channels * net.img_resolution * net.img_resolution
             # Pick latents and labels.
             rnd = StackedRandomGenerator(device, batch_seeds)
-            latents = rnd.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution], device=device)
+            if pfgm or pfgmv2:
+                latents = rnd.rand_beta_prime([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
+                                    N=N,
+                                    D=aug_dim,
+                                    device=device)
+            else:
+                latents = rnd.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
+                                    device=device)
             class_labels = None
             if net.label_dim:
                 class_labels = torch.eye(net.label_dim, device=device)[
@@ -319,7 +428,8 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             sampler_kwargs = {key: value for key, value in sampler_kwargs.items() if value is not None}
             have_ablation_kwargs = any(x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
             sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
-            images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like, **sampler_kwargs)
+            images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
+                                pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, **sampler_kwargs)
             if save_images:
                 # save a small batch of images
                 images_ = (images + 1) / 2.
