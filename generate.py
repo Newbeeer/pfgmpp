@@ -358,9 +358,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     dist.init()
     num_batches = ((len(seeds) - 1) // (max_batch_size * dist.get_world_size()) + 1) * dist.get_world_size()
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
-    print("all batch shape:", all_batches.shape)
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
-    print("rank batch shape:", rank_batches.shape)
 
     # Rank 0 goes first.
     if dist.get_rank() != 0:
