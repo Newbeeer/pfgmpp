@@ -74,8 +74,7 @@ def edm_sampler(
             dx_dt = v[:, :-1].view(len(x_drift), net.img_channels,
                                    net.img_resolution,
                                    net.img_resolution)
-            print(dx_dt.shape, dt_dz.shape)
-            dx_dz = dx_dt * dt_dz.view(-1, *([1] * len(x_drift.size()[1:])))
+            dx_dz = dx_dt * dt_dz.view(-1, *([1] * len(x_hat.size()[1:])))
             d_cur = dx_dz
             x_next = x_hat + (t_next - t_hat) * d_cur
 
@@ -90,7 +89,7 @@ def edm_sampler(
                 dx_dt_new = v_new[:, :-1].view(len(x_drift_new), net.img_channels,
                                        net.img_resolution,
                                        net.img_resolution)
-                dx_dz_new = dx_dt_new * dt_dz_new.view(-1, *([1] * len(x_drift_new.size()[1:])))
+                dx_dz_new = dx_dt_new * dt_dz_new.view(-1, *([1] * len(x_next.size()[1:])))
                 d_prime = dx_dz_new
                 x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
     else:
