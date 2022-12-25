@@ -32,6 +32,7 @@ def edm_sampler(
 ):
 
     if pfgm:
+        print("rho:", rho)
         # Adjust noise levels based on what's supported by the network.
         N = net.img_channels * net.img_resolution * net.img_resolution
         r_min = 0.55 / np.sqrt(N / (D - 2 - 1))
@@ -44,7 +45,7 @@ def edm_sampler(
         t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
 
-        samples_norm = torch.sqrt(latents) * sigma_max * np.sqrt(D)
+        samples_norm = torch.sqrt(latents) * r_max
         samples_norm = samples_norm.view(len(samples_norm), -1)
         # Uniformly sample the angle direction
         gaussian = torch.randn(len(latents), N).to(samples_norm.device)
