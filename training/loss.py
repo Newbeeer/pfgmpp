@@ -11,6 +11,7 @@
 import torch
 from torch_utils import persistence
 import numpy as np
+from scipy.stats import betaprime
 #----------------------------------------------------------------------------
 # Loss function corresponding to the variance preserving (VP) formulation
 # from the paper "Score-Based Generative Modeling through Stochastic
@@ -121,20 +122,23 @@ class EDMLoss:
             rnd_normal = torch.randn(images.shape[0], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
 
-            r = sigma * np.sqrt(self.D)
+            r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
             samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
-                                          size=images.shape[0])
+                                          size=images.shape[0]).astype(np.double)
             inverse_beta = samples_norm / (1 - samples_norm)
-            inverse_beta = torch.from_numpy(inverse_beta).to(images.device)
+            #inverse_beta = betaprime.rvs(a=self.N / 2., b=self.D / 2., size=images.shape[0]).astype(np.double)
+            inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
             # Sampling from p_r(R) by change-of-variable
-            samples_norm = torch.sqrt(r ** 2 * inverse_beta)
+            samples_norm = r * torch.sqrt(inverse_beta)
             samples_norm = samples_norm.view(len(samples_norm), -1)
+
             # Uniformly sample the angle direction
             gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
             unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
             # Construct the perturbation for x
             perturbation_x = unit_gaussian * samples_norm
+            perturbation_x = perturbation_x.float()
 
             sigma = sigma.reshape((len(sigma), 1, 1, 1))
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
@@ -146,7 +150,7 @@ class EDMLoss:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
             #sigma = torch.ones_like(sigma) * 5
-            sigma = torch.ones_like(sigma) * 5
+            #sigma = torch.ones_like(sigma) * 5
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma
@@ -192,14 +196,34 @@ class EDMLoss:
             # diff = - (perturbed_samples_vec.unsqueeze(1) - samples_full_vec)
             # gt_direction2 = torch.sum(distance * diff, dim=1)
             target = samples_full_vec.unsqueeze(0).repeat(len(perturbed_samples), 1, 1)
-            print("stf weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
+            #print("stf weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
 
             gt_direction = torch.sum(weights * target, dim=1)
-            perturbed_samples_vec = torch.cat((perturbed_samples_vec,
-                                               torch.ones((len(perturbed_samples), 1)).to(perturbed_samples_vec.device) * sigmas.unsqueeze(1) * np.sqrt(self.D))
-                                              , dim=1)
-            self.pfgm_target(perturbed_samples_vec, samples_full)
-            self.pfgmv2_target(sigmas * np.sqrt(self.D), perturbed_samples, samples_full)
+            # perturbed_samples_vec = torch.cat((perturbed_samples_vec,
+            #                                    torch.ones((len(perturbed_samples), 1)).to(perturbed_samples_vec.device) * sigmas.unsqueeze(1) * np.sqrt(self.D))
+            #                                   , dim=1)
+            #self.pfgm_target(perturbed_samples_vec, samples_full)
+            # D_list = [2 ** i for i in range(7, 23)]
+            # #D_list.append(3072000)
+            D_list = [3072000]
+            kl_list = []
+            power_list = []
+            #print(torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
+            weight_diff = weights.squeeze().cpu().numpy()
+            for i, D in enumerate(D_list):
+                self.D = D
+                weights_pfgm = self.pfgmv2_target(sigmas.squeeze() * np.sqrt(D), perturbed_samples, samples_full)
+                #print(torch.sort(weights_pfgm.squeeze(), dim=1, descending=True)[0][:, 0])
+                weights_pfgm = weights_pfgm.cpu().numpy()
+
+                kl = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
+                #kl = kl.sum(1).mean()
+                print("D:", D, "kl:", kl)
+                kl_list.append(kl)
+                power_list.append(i)
+            #
+            # np.savez('tvd.npy', tvd=kl_list, power=power_list)
+            # exit(0)
             return gt_direction
 
     def pfgm_target(self, perturbed_samples_vec, samples_full):
@@ -238,10 +262,10 @@ class EDMLoss:
     def pfgmv2_target(self, r, perturbed_samples, samples_full):
         # # Augment the data with extra dimension z
         perturbed_samples_vec = torch.cat((perturbed_samples.reshape(len(perturbed_samples), -1),
-                                           r[:, None]), dim=1).float()
+                                           r[:, None]), dim=1).double()
         real_samples_vec = torch.cat(
             (samples_full.reshape(len(samples_full), -1), torch.zeros((len(samples_full), 1)).to(samples_full.device)),
-            dim=1)
+            dim=1).double()
 
         data_dim = self.N + self.D
         gt_distance = torch.sum((perturbed_samples_vec.unsqueeze(1) - real_samples_vec) ** 2,
@@ -259,7 +283,8 @@ class EDMLoss:
         # Calculate empirical Poisson field (N+D dimension in the augmented space)
         gt_direction = torch.sum(coeff * target, dim=1)
         gt_direction = gt_direction.view(gt_direction.size(0), -1)
-        gt_direction = gt_direction[:, :-1]
+        gt_direction = gt_direction[:, :-1].float()
 
         return gt_direction
+        #return coeff.squeeze().float()
 #----------------------------------------------------------------------------
