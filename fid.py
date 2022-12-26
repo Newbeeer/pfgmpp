@@ -82,13 +82,10 @@ def calculate_inception_stats(
 #----------------------------------------------------------------------------
 
 def calculate_fid_from_inception_stats(mu, sigma, mu_ref, sigma_ref):
-    print('1')
+    print(mu.shape, sigma.shape, mu_ref.shape, sigma_ref.shape)
     m = np.square(mu - mu_ref).sum()
-    print('2')
     s, _ = scipy.linalg.sqrtm(np.dot(sigma, sigma_ref), disp=False)
-    print('3')
     fid = m + np.trace(sigma + sigma_ref - s * 2)
-    print('4')
     return float(np.real(fid))
 
 #----------------------------------------------------------------------------
@@ -165,9 +162,9 @@ def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_se
         mu, sigma = calculate_inception_stats(image_path=path, num_expected=num_expected, seed=seed,
                                               max_batch_size=batch)
         dist.print0('Calculating FID... ')
-        if dist.get_rank() == 0:
-            fid = calculate_fid_from_inception_stats(mu, sigma, ref['mu'], ref['sigma'])
-            print(f'path:{path}, {fid:g}')
+        #if dist.get_rank() == 0:
+        fid = calculate_fid_from_inception_stats(mu, sigma, ref['mu'], ref['sigma'])
+        print(f'path:{path}, {fid:g}')
         torch.distributed.barrier()
 
 #----------------------------------------------------------------------------
