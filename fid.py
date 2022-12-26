@@ -82,7 +82,6 @@ def calculate_inception_stats(
 #----------------------------------------------------------------------------
 
 def calculate_fid_from_inception_stats(mu, sigma, mu_ref, sigma_ref):
-    print(mu.shape, sigma.shape, mu_ref.shape, sigma_ref.shape)
     m = np.square(mu - mu_ref).sum()
     s, _ = linalg.sqrtm(np.dot(sigma, sigma_ref), disp=False)
     fid = m + np.trace(sigma + sigma_ref - s * 2)

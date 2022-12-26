@@ -113,7 +113,7 @@ def edm_sampler(
             # Radius times the angle direction
             init_samples = unit_gaussian * samples_norm
             latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
-            print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
+            #print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
             x_next = latents.to(torch.float64)
         else:
             x_next = latents.to(torch.float64) * t_steps[0]
