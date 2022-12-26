@@ -161,6 +161,7 @@ def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_se
             continue
         mu, sigma = calculate_inception_stats(image_path=path, num_expected=num_expected, seed=seed,
                                               max_batch_size=batch)
+        np.savez(os.path.join(path, 'fid-stats'), mu=mu, sigma=sigma)
         dist.print0('Calculating FID... ')
         #if dist.get_rank() == 0:
         fid = calculate_fid_from_inception_stats(mu, sigma, ref['mu'], ref['sigma'])
