@@ -148,9 +148,11 @@ def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_se
 
     done_list = [192826, 112896]
     for path in stats:
-
+        #print(path)
         ckpt_num = path[-6:]
+        #print("check num:", ckpt_num)
         if ckpt_num[0] == '_':
+            continue
             ckpt_num = ckpt_num[1:]
         ckpt_num = int(ckpt_num)
         #print(ckpt_num)

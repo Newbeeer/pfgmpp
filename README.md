@@ -123,11 +123,10 @@ To compute Fr&eacute;chet inception distance (FID) for a given model and sampler
 
 ```.bash
 # Generate 50000 images and save them as fid-tmp/*/*.png
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 generate.py --outdir=fid-tmp --seeds=0-49999 --outdir=./training-runs/... --ckpt ... --pfgm=1
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 generate.py --seeds=0-49999 --outdir=./training-runs/... --ckpt ... --pfgm=1
 
 # Calculate FID
-torchrun --standalone --nproc_per_node=1 fid.py calc --images=fid-tmp \
-    --ref=https://nvlabs-fi-cdn.nvidia.com/edm/fid-refs/cifar10-32x32.npz
+torchrun --standalone --nproc_per_node=1 fid.py calc --images=./training-runs/...  --ref=... --num 50000 --ckpt ... --gen_seed 1
 ```
 
 Both of the above commands can be parallelized across multiple GPUs by adjusting `--nproc_per_node`. The second command typically takes 1-3 minutes in practice, but the first one can sometimes take several hours, depending on the configuration. See [`python fid.py --help`](./docs/fid-help.txt) for the full list of options.
