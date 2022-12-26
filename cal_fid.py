@@ -14,3 +14,5 @@ def calculate_fid_from_inception_stats():
     fid = m + np.trace(sigma + sigma_ref - s * 2)
     print("FID:", float(np.real(fid)))
     return float(np.real(fid))
+
+calculate_fid_from_inception_stats()
