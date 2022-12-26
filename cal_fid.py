@@ -2,8 +2,10 @@ from scipy import linalg
 import numpy as np
 
 def calculate_fid_from_inception_stats():
-    ref = dict(np.load('fid-refs/cifar10-32x32.npz'))
-    gen = dict(np.load('training-runs/pfgm_ddpmpp/ckpt_085299/fid-stats.npz'))
+    #ref = dict(np.load('fid-refs/cifar10-32x32.npz'))
+    #gen = dict(np.load('training-runs/pfgm_ddpmpp/ckpt_085299/fid-stats.npz'))
+    ref = dict(np.load('../data/cifar10/cifar10-32x32.npz'))
+    gen = dict(np.load('fid-stats.npz'))
     mu_ref = ref['mu']
     sigma_ref = ref['sigma']
 
