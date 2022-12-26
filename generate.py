@@ -32,7 +32,7 @@ def edm_sampler(
 ):
 
     if pfgm:
-        print("rho:", rho)
+        #print("rho:", rho)
         # Adjust noise levels based on what's supported by the network.
         N = net.img_channels * net.img_resolution * net.img_resolution
         r_min = 0.55 / np.sqrt(N / (D - 2 - 1))
@@ -53,7 +53,7 @@ def edm_sampler(
         # Radius times the angle direction
         init_samples = unit_gaussian * samples_norm
         latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
-        print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
+        #print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
         x_next = latents.to(torch.float64)
 
         # Main sampling loop.
