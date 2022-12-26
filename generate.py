@@ -45,15 +45,14 @@ def edm_sampler(
         t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
 
-        samples_norm = torch.sqrt(latents) * r_max
-        samples_norm = samples_norm.view(len(samples_norm), -1)
-        # Uniformly sample the angle direction
-        gaussian = torch.randn(len(latents), N).to(samples_norm.device)
-        unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-        # Radius times the angle direction
-        init_samples = unit_gaussian * samples_norm
-        latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
-        #print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
+        # samples_norm = torch.sqrt(latents) * r_max
+        # samples_norm = samples_norm.view(len(samples_norm), -1)
+        # # Uniformly sample the angle direction
+        # gaussian = torch.randn(len(latents), N).to(samples_norm.device)
+        # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+        # # Radius times the angle direction
+        # init_samples = unit_gaussian * samples_norm
+        # latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
         x_next = latents.to(torch.float64)
 
         # Main sampling loop.
@@ -104,16 +103,15 @@ def edm_sampler(
         t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
         if pfgmv2:
-            N = net.img_channels * net.img_resolution * net.img_resolution
-            samples_norm = torch.sqrt(latents) * sigma_max * np.sqrt(D)
-            samples_norm = samples_norm.view(len(samples_norm), -1)
-            # Uniformly sample the angle direction
-            gaussian = torch.randn(len(latents), N).to(samples_norm.device)
-            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            # Radius times the angle direction
-            init_samples = unit_gaussian * samples_norm
-            latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
-            #print("mean latent norm:", latents.reshape((len(latents), -1)).norm(p=2,dim=1).mean())
+            # N = net.img_channels * net.img_resolution * net.img_resolution
+            # samples_norm = torch.sqrt(latents) * sigma_max * np.sqrt(D)
+            # samples_norm = samples_norm.view(len(samples_norm), -1)
+            # # Uniformly sample the angle direction
+            # gaussian = torch.randn(len(latents), N).to(samples_norm.device)
+            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            # # Radius times the angle direction
+            # init_samples = unit_gaussian * samples_norm
+            # latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
             x_next = latents.to(torch.float64)
         else:
             x_next = latents.to(torch.float64) * t_steps[0]
@@ -136,7 +134,7 @@ def edm_sampler(
                 denoised = net(x_next, t_next, class_labels).to(torch.float64)
                 d_prime = (x_next - denoised) / t_next
                 x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-
+    #print("mean final norm:", x_next.reshape((len(x_next), -1)).norm(p=2, dim=1).mean(), x_next.shape)
     return x_next
 
 #----------------------------------------------------------------------------
@@ -272,18 +270,28 @@ class StackedRandomGenerator:
 
     def rand_beta_prime(self, size, N=3072, D=128, **kwargs):
         # sample from beta_prime (N/2, D/2)
+        # print(f"N:{N}, D:{D}")
         assert size[0] == len(self.seeds)
-        seed_init = torch.initial_seed()
-        beta_list = []
+        latent_list = []
         beta_gen = Beta(torch.FloatTensor([N / 2.]), torch.FloatTensor([D / 2.]))
         for seed in self.seeds:
             torch.manual_seed(seed)
-            beta_list.append(beta_gen.sample())
+            sample_norm = beta_gen.sample().to(kwargs['device']).double()
+            # inverse beta distribution
+            inverse_beta = sample_norm / (1-sample_norm)
+            if kwargs['pfgm']:
+                r_max = 2500 / np.sqrt(N / (D - 2 - 1))
+                sample_norm = torch.sqrt(inverse_beta) * r_max
+            elif kwargs['pfgmv2']:
+                sample_norm = torch.sqrt(inverse_beta) * 80 * np.sqrt(D)
 
-        samples_norm = torch.cat(beta_list, dim=0).to(kwargs['device'])
-        inverse_beta = samples_norm / (1 - samples_norm)
-        torch.manual_seed(seed_init)
-        return inverse_beta
+            gaussian = torch.randn(N).to(sample_norm.device)
+            unit_gaussian = gaussian / torch.norm(gaussian, p=2)
+            init_sample = unit_gaussian * sample_norm
+            latent_list.append(init_sample.reshape((1, *size[1:])))
+
+        latent = torch.cat(latent_list, dim=0)
+        return latent
 
     def randn_like(self, input):
         return self.randn(input.shape, dtype=input.dtype, layout=input.layout, device=input.device)
@@ -410,6 +418,8 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                 latents = rnd.rand_beta_prime([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
                                     N=N,
                                     D=aug_dim,
+                                    pfgm=pfgm,
+                                    pfgmv2=pfgmv2,
                                     device=device)
             else:
                 latents = rnd.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
@@ -438,6 +448,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             images_np = (images * 127.5 + 128).clip(0, 255).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
 
             for seed, image_np in zip(batch_seeds, images_np):
+                #print(seed)
                 #image_dir = os.path.join(temp_dir, f'{seed - seed % 1000:06d}') if subdirs else outdir
                 image_dir = os.path.join(temp_dir, f'{seed - seed % 1000:06d}')
                 os.makedirs(image_dir, exist_ok=True)
