@@ -9,6 +9,9 @@ def calculate_fid_from_inception_stats():
 
     mu = gen['mu']
     sigma = gen['sigma']
+    print(sigma)
+
+    print("ref:", sigma_ref)
     print(mu.shape, sigma.shape, mu_ref.shape, sigma_ref.shape)
     m = np.square(mu - mu_ref).sum()
     print("h")
