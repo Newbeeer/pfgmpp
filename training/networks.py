@@ -113,6 +113,7 @@ class GroupNorm(torch.nn.Module):
 class AttentionOp(torch.autograd.Function):
     @staticmethod
     def forward(ctx, q, k):
+        #print("q shape:", q.shape, "k shape:", k.shape)
         w = torch.einsum('ncq,nck->nqk', q.to(torch.float32), (k / np.sqrt(k.shape[1])).to(torch.float32)).softmax(dim=2).to(q.dtype)
         ctx.save_for_backward(q, k, w)
         return w
@@ -179,6 +180,7 @@ class UNetBlock(torch.nn.Module):
         x = x * self.skip_scale
 
         if self.num_heads:
+            #print("x shape:", x.shape, self.norm2(x).shape, self.num_heads)
             q, k, v = self.qkv(self.norm2(x)).reshape(x.shape[0] * self.num_heads, x.shape[1] // self.num_heads, 3, -1).unbind(2)
             w = AttentionOp.apply(q, k)
             a = torch.einsum('nqk,nck->ncq', w, v)

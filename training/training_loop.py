@@ -93,7 +93,7 @@ def training_loop(
             sigma = torch.ones([B], device=device)
             labels = torch.zeros([B, net.label_dim], device=device)
             misc.print_module_summary(net, [images, sigma, labels], max_nesting=2)
-
+    exit(0)
     # Setup optimizer.
     dist.print0('Setting up optimizer...')
     loss_fn = dnnlib.util.construct_class_by_name(**loss_kwargs) # training.loss.(VP|VE|EDM)Loss

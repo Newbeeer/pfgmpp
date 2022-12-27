@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import warnings
 import dnnlib
+from thop import profile
 
 #----------------------------------------------------------------------------
 # Cached construction of constant tensors. Avoids CPU=>GPU copy when the
@@ -214,6 +215,9 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
 
     # Run module.
     outputs = module(*inputs)
+
+    macs, params = profile(module, inputs=inputs)
+    print(macs, params)
     for hook in hooks:
         hook.remove()
 
@@ -230,14 +234,17 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
         entries = [e for e in entries if len(e.unique_params) or len(e.unique_buffers) or len(e.unique_outputs)]
 
     # Construct table.
-    rows = [[type(module).__name__, 'Parameters', 'Buffers', 'Output shape', 'Datatype']]
+    rows = [[type(module).__name__, 'Parameters', 'Buffers', 'Output shape', 'Datatype', 'Parameters', "Size"]]
     rows += [['---'] * len(rows[0])]
     param_total = 0
     buffer_total = 0
+    size_total = 0
     submodule_names = {mod: name for name, mod in module.named_modules()}
     for e in entries:
         name = '<top-level>' if e.mod is module else submodule_names[e.mod]
         param_size = sum(t.numel() for t in e.unique_params)
+        nelement = sum(t.nelement() for t in e.unique_params)
+        size_ = sum(t.nelement() * t.element_size() for t in e.unique_params) / 1024**2
         buffer_size = sum(t.numel() for t in e.unique_buffers)
         output_shapes = [str(list(t.shape)) for t in e.outputs]
         output_dtypes = [str(t.dtype).split('.')[-1] for t in e.outputs]
@@ -247,18 +254,22 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
             str(buffer_size) if buffer_size else '-',
             (output_shapes + ['-'])[0],
             (output_dtypes + ['-'])[0],
+            str(nelement),
+            str(size_),
         ]]
         for idx in range(1, len(e.outputs)):
             rows += [[name + f':{idx}', '-', '-', output_shapes[idx], output_dtypes[idx]]]
         param_total += param_size
         buffer_total += buffer_size
+        size_total += size_
     rows += [['---'] * len(rows[0])]
-    rows += [['Total', str(param_total), str(buffer_total), '-', '-']]
+    rows += [['Total', str(param_total), str(buffer_total), '-', '-', '-', str(size_total)]]
 
     # Print table.
     widths = [max(len(cell) for cell in column) for column in zip(*rows)]
     print()
     for row in rows:
+        #print(row)
         print('  '.join(cell + ' ' * (width - len(cell)) for cell, width in zip(row, widths)))
     print()
     return outputs
