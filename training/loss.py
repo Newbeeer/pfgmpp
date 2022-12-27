@@ -293,6 +293,6 @@ class EDMLoss:
         gt_direction = gt_direction.view(gt_direction.size(0), -1)
         gt_direction = gt_direction[:, :-1].float()
 
-        #return gt_direction
-        return coeff.squeeze().float()
+        return gt_direction
+        #return coeff.squeeze().float()
 #----------------------------------------------------------------------------
