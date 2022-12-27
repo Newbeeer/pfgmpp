@@ -92,6 +92,7 @@ def edm_sampler(
                 d_prime = dx_dz_new
                 x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
     else:
+        N = net.img_channels * net.img_resolution * net.img_resolution
         # Adjust noise levels based on what's supported by the network.
         sigma_min = max(sigma_min, net.sigma_min)
         sigma_max = min(sigma_max, net.sigma_max)
@@ -117,8 +118,18 @@ def edm_sampler(
             x_next = latents.to(torch.float64) * t_steps[0]
         # Main sampling loop.
         for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
+
             x_cur = x_next
 
+            gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
+            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            unit_gaussian = unit_gaussian.view_as(x_cur)
+            if i <  15:
+                x_cur += unit_gaussian * \
+                        0.15 * torch.norm(x_cur.view(len(x_cur), -1), p=2, dim=1).reshape((len(x_cur), 1, 1, 1))
+            norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
+            print(f"t cur:{t_cur}, norm/\sigma * np.sqrt({N}):",
+                  f"max: {max(norm)}, min: {min(norm)}")
             # Increase noise temporarily.
             gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
             t_hat = net.round_sigma(t_cur + gamma * t_cur)
@@ -389,7 +400,9 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             continue
 
         data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
+        #print(data.keys())
         net = data['ema'].to(device)
+        #net = data['net'].to(device)
         # with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
         #     net = pickle.load(f)['ema'].to(device)
         if seeds[-1] > 49999 and seeds[-1] <= 99999:
@@ -443,6 +456,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                 images_ = (images + 1) / 2.
                 image_grid = make_grid(images_, nrow=20)
                 save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}.png'))
+                exit(0)
                 break
             # Save images.
             images_np = (images * 127.5 + 128).clip(0, 255).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()

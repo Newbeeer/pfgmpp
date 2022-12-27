@@ -11,7 +11,6 @@ import numpy as np
 import torch
 import warnings
 import dnnlib
-from thop import profile
 
 #----------------------------------------------------------------------------
 # Cached construction of constant tensors. Avoids CPU=>GPU copy when the
@@ -214,10 +213,9 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
     hooks += [mod.register_forward_hook(post_hook) for mod in module.modules()]
 
     # Run module.
-    outputs = module(*inputs)
 
-    macs, params = profile(module, inputs=inputs)
-    print(macs, params)
+
+    outputs = module(*inputs)
     for hook in hooks:
         hook.remove()
 

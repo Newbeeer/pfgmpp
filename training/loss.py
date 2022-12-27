@@ -150,7 +150,6 @@ class EDMLoss:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
             #sigma = torch.ones_like(sigma) * 5
-            #sigma = torch.ones_like(sigma) * 5
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma
@@ -199,31 +198,40 @@ class EDMLoss:
             #print("stf weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
 
             gt_direction = torch.sum(weights * target, dim=1)
-            # perturbed_samples_vec = torch.cat((perturbed_samples_vec,
+            # perturbed_samples_vec = t7orch.cat((perturbed_samples_vec,
             #                                    torch.ones((len(perturbed_samples), 1)).to(perturbed_samples_vec.device) * sigmas.unsqueeze(1) * np.sqrt(self.D))
             #                                   , dim=1)
             #self.pfgm_target(perturbed_samples_vec, samples_full)
-            # D_list = [2 ** i for i in range(7, 23)]
-            # #D_list.append(3072000)
-            D_list = [3072000]
+            D_list = [2 ** i for i in range(1, 23)]
+            D_list.append(307200)
+            #D_list = [3072000]
             kl_list = []
             power_list = []
             #print(torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
             weight_diff = weights.squeeze().cpu().numpy()
-            for i, D in enumerate(D_list):
-                self.D = D
-                weights_pfgm = self.pfgmv2_target(sigmas.squeeze() * np.sqrt(D), perturbed_samples, samples_full)
-                #print(torch.sort(weights_pfgm.squeeze(), dim=1, descending=True)[0][:, 0])
-                weights_pfgm = weights_pfgm.cpu().numpy()
+            sigma_list = np.linspace(0, 1, 1000)
+            sigma_list = 0.01 * (80 / 0.01) ** sigma_list
+            tvd_collect = np.ones((len(D_list), len(sigma_list)))
+            for c, cur_sigma in enumerate(sigma_list):
+                for i, D in enumerate(D_list):
+                    self.D = D
+                    input_sigma = torch.ones_like(sigmas) * cur_sigma
+                    weights_pfgm = self.pfgmv2_target(input_sigma.squeeze() * np.sqrt(D), perturbed_samples, samples_full)
+                    # print(torch.sort(weights_pfgm.squeeze(), dim=1, descending=True)[0][:, 0])
+                    weights_pfgm = weights_pfgm.cpu().numpy()
 
-                kl = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
-                #kl = kl.sum(1).mean()
-                print("D:", D, "kl:", kl)
-                kl_list.append(kl)
-                power_list.append(i)
-            #
-            # np.savez('tvd.npy', tvd=kl_list, power=power_list)
-            # exit(0)
+                    kl = 0.5 * abs(weights_pfgm -
+                                   np.ones_like(weights_pfgm) / len(samples_full)).sum(1).mean()
+                    # kl = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
+                    # print("D:", D, "kl:", kl)
+                    # kl_list.append(kl)
+                    # power_list.append(i)
+                    tvd_collect[i, c] = kl
+
+
+            #np.savez('tvd_prior', tvd=tvd_collect, power=power_list)
+            np.savez('tvd_prior', tvd=tvd_collect, sigma=sigma_list)
+            exit(0)
             return gt_direction
 
     def pfgm_target(self, perturbed_samples_vec, samples_full):
@@ -285,6 +293,6 @@ class EDMLoss:
         gt_direction = gt_direction.view(gt_direction.size(0), -1)
         gt_direction = gt_direction[:, :-1].float()
 
-        return gt_direction
-        #return coeff.squeeze().float()
+        #return gt_direction
+        return coeff.squeeze().float()
 #----------------------------------------------------------------------------
