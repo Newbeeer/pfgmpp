@@ -155,10 +155,11 @@ class EDMLoss:
             n = torch.randn_like(y) * sigma
             D_yn = net(y + n, sigma, labels, augment_labels=augment_labels)
 
-        ref_images[len(y):], augment_labels_2 = augment_pipe(ref_images[len(y):]) \
-            if augment_pipe is not None else (images, None)
-        # update augmented original images
-        ref_images[:len(y)] = y
+        if stf or pfgm or pfgmv2:
+            ref_images[len(y):], augment_labels_2 = augment_pipe(ref_images[len(y):]) \
+                if augment_pipe is not None else (images, None)
+            # update augmented original images
+            ref_images[:len(y)] = y
         if stf:
             target = self.stf_scores(sigma.squeeze(), y+n, ref_images)
             target = target.view_as(y)

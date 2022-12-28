@@ -124,12 +124,12 @@ def edm_sampler(
             gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
             unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
             unit_gaussian = unit_gaussian.view_as(x_cur)
-            if i <  15:
-                x_cur += unit_gaussian * \
-                        0.15 * torch.norm(x_cur.view(len(x_cur), -1), p=2, dim=1).reshape((len(x_cur), 1, 1, 1))
-            norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
-            print(f"t cur:{t_cur}, norm/\sigma * np.sqrt({N}):",
-                  f"max: {max(norm)}, min: {min(norm)}")
+            # if i < 10:
+            #     x_cur += unit_gaussian * \
+            #             0.05 * torch.norm(x_cur.view(len(x_cur), -1), p=2, dim=1).reshape((len(x_cur), 1, 1, 1))
+            # norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
+            # print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
+            #      f"max: {max(norm):.3f}, min: {min(norm):.3f}")
             # Increase noise temporarily.
             gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
             t_hat = net.round_sigma(t_cur + gamma * t_cur)
