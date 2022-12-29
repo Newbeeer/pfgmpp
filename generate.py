@@ -28,7 +28,7 @@ from torch_utils import misc
 def edm_sampler(
     net, latents, class_labels=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
-    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, pfgm=False, pfgmv2=False, D=128
+    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, pfgm=False, pfgmv2=False, align=False, D=128
 ):
 
     if pfgm:
@@ -97,8 +97,9 @@ def edm_sampler(
         sigma_min = max(sigma_min, net.sigma_min)
         sigma_max = min(sigma_max, net.sigma_max)
 
-        # if D == 128:
-        #     sigma_max = 200
+        if align:
+            sigma_min *= np.sqrt(1 + N/D)
+            sigma_max *= np.sqrt(1 + N/D)
 
         # Time step discretization.
         step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
@@ -124,17 +125,16 @@ def edm_sampler(
 
             x_cur = x_next
 
-            # gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
-            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            # unit_gaussian = unit_gaussian.view_as(x_cur)
-            # if i < 10:
-            #     x_cur += unit_gaussian * \
-            #             0.15 * torch.norm(x_cur.view(len(x_cur), -1), p=2, dim=1).reshape((len(x_cur), 1, 1, 1))
+            gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
+            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            unit_gaussian = unit_gaussian.view_as(x_cur)
+            if i < 10:
+                x_cur += torch.randn_like(x_cur) * t_cur * 0.15
 
-            # quantization
-            # norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
-            # print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
-            #      f"max: {max(norm):.3f}, min: {min(norm):.3f}")
+            norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
+            print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
+                 f"max: {max(norm):.3f}, min: {min(norm):.3f}")
+
             # Increase noise temporarily.
             gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
             t_hat = net.round_sigma(t_cur + gamma * t_cur)
@@ -301,6 +301,8 @@ class StackedRandomGenerator:
             elif kwargs['pfgmv2']:
                 #S_max = 200 if D==128 else 80
                 S_max = 80
+                if kwargs['align']:
+                    S_max *= np.sqrt(1 + N/D)
                 sample_norm = torch.sqrt(inverse_beta) * S_max * np.sqrt(D)
 
             gaussian = torch.randn(N).to(sample_norm.device)
@@ -363,9 +365,10 @@ def parse_int_list(s):
 
 @click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--align',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
 
-def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, aug_dim, device=torch.device('cuda'), **sampler_kwargs):
+def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, device=torch.device('cuda'), **sampler_kwargs):
     """Generate random images using the techniques described in the paper
     "Elucidating the Design Space of Diffusion-Based Generative Models".
 
@@ -436,8 +439,8 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         else:
             temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}')
 
-        if os.path.exists(temp_dir):
-            continue
+        # if os.path.exists(temp_dir):
+        #     continue
         # Other ranks follow.
         if dist.get_rank() == 0:
             torch.distributed.barrier()
@@ -459,6 +462,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                                     D=aug_dim,
                                     pfgm=pfgm,
                                     pfgmv2=pfgmv2,
+                                    align=align,
                                     device=device)
             else:
                 latents = rnd.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
@@ -476,7 +480,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             have_ablation_kwargs = any(x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
             sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
             images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
-                                pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, **sampler_kwargs)
+                                pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, **sampler_kwargs)
             if save_images:
                 # save a small batch of images
                 images_ = (images + 1) / 2.
