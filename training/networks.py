@@ -734,6 +734,7 @@ class EDMPrecond(torch.nn.Module):
                 c_noise = sigma.log() / 4
 
             x_in = c_in * x
+            #print("before norm:", x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
             #scale = (max(x_in.view(-1)) - min(x_in.view(-1))) / (2 ** 8)
             #zero_p = - 2 ** 7 - min(x_in.view(-1)) / scale
             #print("before norm:", x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())

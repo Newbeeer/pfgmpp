@@ -73,7 +73,7 @@ class EDMLoss:
         self.N = N
         self.gamma = gamma
 
-    def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, ref_images=None):
+    def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, ref_images=None):
         if pfgm:
             r_min = 0.55 / np.sqrt(3072 / (self.D - 2 - 1))
             r_max = 2500 / np.sqrt(3072 / (self.D - 2 - 1))
@@ -119,9 +119,11 @@ class EDMLoss:
                                                r[:, None]), dim=1).float()
             weight = torch.ones((len(perturbed_samples_vec), 1), device=images.device)
         elif pfgmv2:
-            # TODO change P_mean/P_std for D=128
+
             rnd_normal = torch.randn(images.shape[0], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
+            if align:
+                sigma = sigma * np.sqrt(1 + (self.N)/self.D)
 
             sigma_ = sigma.reshape((len(sigma), 1, 1, 1))
             weight = (sigma_ ** 2 + self.sigma_data ** 2) / (sigma_ * self.sigma_data) ** 2
@@ -168,7 +170,6 @@ class EDMLoss:
             if stf:
                 target = self.pfgm_target(perturbed_samples_vec, ref_images)
                 target = target.view_as(D_yn)
-                #print(target.norm(p=2, dim=1).mean())
             else:
                 target = y
         elif pfgmv2:

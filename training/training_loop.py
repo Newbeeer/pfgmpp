@@ -49,6 +49,7 @@ def training_loop(
     stf                 = False,
     pfgm                = False,
     pfgmv2              = False,
+    align               = False,
     rbatch              = 4096,
     D = 128,
 ):
@@ -153,7 +154,8 @@ def training_loop(
                     batch_labels = labels
 
                 # B * C * H * W
-                loss = loss_fn(net=ddp, images=batch_images, labels=batch_labels, augment_pipe=augment_pipe, stf=stf, pfgm=pfgm, pfgmv2=pfgmv2, ref_images=images)
+                loss = loss_fn(net=ddp, images=batch_images, labels=batch_labels, augment_pipe=augment_pipe, stf=stf,
+                               pfgm=pfgm, pfgmv2=pfgmv2, align=align, ref_images=images)
                 training_stats.report('Loss/loss', loss)
                 loss.sum().mul(loss_scaling / (batch_size // dist.get_world_size())).backward()
 

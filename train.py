@@ -48,6 +48,7 @@ def parse_int_list(s):
 @click.option('--stf',          help='Train stable target field model', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--small',          help='small network', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--align',          help='small network', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--arch',          help='Network architecture', metavar='ddpmpp|ncsnpp|adm',          type=click.Choice(['ddpmpp', 'ncsnpp', 'adm']), default='ddpmpp', show_default=True)
 @click.option('--precond',       help='Preconditioning & loss function', metavar='vp|ve|edm',       type=click.Choice(['vp', 've', 'edm']), default='edm', show_default=True)
@@ -160,7 +161,7 @@ def main(**kwargs):
     # Training options.
     c.total_kimg = max(int(opts.duration * 1000), 1)
     c.ema_halflife_kimg = int(opts.ema * 1000)
-    c.update(rbatch=opts.rbatch, stf=opts.stf, pfgm=opts.pfgm, D=opts.aug_dim, pfgmv2=opts.pfgmv2)
+    c.update(rbatch=opts.rbatch, stf=opts.stf, pfgm=opts.pfgm, D=opts.aug_dim, pfgmv2=opts.pfgmv2, align=opts.align)
     c.update(batch_size=opts.batch, batch_gpu=opts.batch_gpu)
     c.update(loss_scaling=opts.ls, cudnn_benchmark=opts.bench)
     c.update(kimg_per_tick=opts.tick, snapshot_ticks=opts.snap, state_dump_ticks=opts.dump)
