@@ -62,7 +62,7 @@ def training_loop(
     torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = False
 
     # Select batch size per GPU.
-    if stf or pfgm or pfgmv2:
+    if stf:
         batch_gpu_total = rbatch
         batch_gpu = batch_gpu_total
         num_accumulation_rounds = 1
@@ -142,7 +142,7 @@ def training_loop(
                 images, labels = next(dataset_iterator)
                 images = images.to(device).to(torch.float32) / 127.5 - 1
                 labels = labels.to(device)
-                if stf or pfgm or pfgmv2:
+                if stf:
                     # divide the mini-batch by the device number
                     # per-device 128 samples
                     # stf = 1024

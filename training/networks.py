@@ -37,11 +37,16 @@ class Linear(torch.nn.Module):
         self.bias = torch.nn.Parameter(weight_init([out_features], **init_kwargs) * init_bias) if bias else None
 
     def forward(self, x):
+        #self.weight.data = self.quan_dequan(self.weight.data)
         x = x @ self.weight.to(x.dtype).t()
         if self.bias is not None:
             x = x.add_(self.bias.to(x.dtype))
         return x
 
+    def quan_dequan(self, input, cal=False):
+        if not cal:
+            input_q = torch.quantize_per_tensor(input.float(), 1 / 32., 0, dtype=torch.qint8)
+        return input_q.dequantize()
 #----------------------------------------------------------------------------
 # Convolutional layer with optional up/downsampling.
 
@@ -72,9 +77,16 @@ class Conv2d(torch.nn.Module):
         w_pad = w.shape[-1] // 2 if w is not None else 0
         f_pad = (f.shape[-1] - 1) // 2 if f is not None else 0
 
+        #x = self.quan_dequan(x, cal=False)
+        # if w is not None:
+        #     w = self.quan_dequan(w)
+
         if self.fused_resample and self.up and w is not None:
             x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]), groups=self.in_channels, stride=2, padding=w_pad+f_pad)
             x = torch.nn.functional.conv2d(x, w)
+            # x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]),
+            #                                          groups=self.in_channels, stride=2, padding=max(f_pad - w_pad, 0))
+            # x = torch.nn.functional.conv2d(x, w, padding=max(w_pad - f_pad, 0))
         elif self.fused_resample and self.down and w is not None:
             x = torch.nn.functional.conv2d(x, w, padding=w_pad+f_pad)
             x = torch.nn.functional.conv2d(x, f.tile([self.out_channels, 1, 1, 1]), groups=self.out_channels, stride=2)
@@ -89,6 +101,15 @@ class Conv2d(torch.nn.Module):
             x = x.add_(b.reshape(1, -1, 1, 1))
         return x
 
+    def quan_dequan(self, input, cal=False):
+        if not cal:
+            input_q = torch.quantize_per_tensor(input.float(), 1 / 32., 0, dtype=torch.qint8)
+        # else:
+        #     scale = (max(input[0,0].view(-1)) - min(input[0,0].view(-1))) / (2 ** 8)
+        #     #zero_p = - 2 ** 7 - min(input[0,0].view(-1)) / scale
+        #     zero_p =0
+        #     input_q = torch.quantize_per_tensor(input.float(), scale.detach().cpu().numpy(), zero_p, dtype=torch.qint8)
+        return input_q.dequantize()
 #----------------------------------------------------------------------------
 # Group normalization.
 
@@ -186,6 +207,11 @@ class UNetBlock(torch.nn.Module):
             a = torch.einsum('nqk,nck->ncq', w, v)
             x = self.proj(a.reshape(*x.shape)).add_(x)
             x = x * self.skip_scale
+        # print("before:", x[0])
+        # x = torch.quantize_per_tensor(x.float(), 1 / 64., 0, dtype=torch.qint8)
+        # x = x.dequantize()
+        # print("after:", x[0])
+
         return x
 
 #----------------------------------------------------------------------------
@@ -617,6 +643,8 @@ class iDDPMPrecond(torch.nn.Module):
         class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim], device=x.device) if class_labels is None else class_labels.to(torch.float32).reshape(-1, self.label_dim)
         dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
+        #dtype = torch.float16
+
         c_skip = 1
         c_out = -sigma
         c_in = 1 / (sigma ** 2 + 1).sqrt()
@@ -653,6 +681,7 @@ class EDMPrecond(torch.nn.Module):
         sigma_max       = float('inf'),     # Maximum supported noise level.
         sigma_data      = 0.5,              # Expected standard deviation of the training data.
         model_type      = 'DhariwalUNet',   # Class name of the underlying model.
+        small           = False,
         **model_kwargs,                     # Keyword arguments for the underlying model.
     ):
         super().__init__()
@@ -661,6 +690,7 @@ class EDMPrecond(torch.nn.Module):
         self.label_dim = label_dim
         self.pfgm = pfgm
         self.use_fp16 = use_fp16
+        self.small = small
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
@@ -668,6 +698,7 @@ class EDMPrecond(torch.nn.Module):
                                            out_channels=img_channels, pfgm=pfgm, label_dim=label_dim, **model_kwargs)
 
     def forward(self, x, sigma, class_labels=None, D=128, force_fp32=False,  **model_kwargs):
+
         x = x.to(torch.float32)
         if self.pfgm:
             sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1) / np.sqrt(D)
@@ -690,17 +721,47 @@ class EDMPrecond(torch.nn.Module):
                 torch.float32).reshape(-1, self.label_dim)
             dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
-            c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
-            c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
-            c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-            c_noise = sigma.log() / 4
+            if self.small:
+                #ve type
+                c_skip = 1
+                c_out = sigma
+                c_in = 1
+                c_noise = (0.5 * sigma).log()
+            else:
+                c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
+                c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
+                c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+                c_noise = sigma.log() / 4
 
-            #x_in = c_in * x
-            #print(x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
-            F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
+            x_in = c_in * x
+            #scale = (max(x_in.view(-1)) - min(x_in.view(-1))) / (2 ** 8)
+            #zero_p = - 2 ** 7 - min(x_in.view(-1)) / scale
+            #print("before norm:", x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
+            #print("before:", x_in[0])
+            #x_in_test = torch.quantize_per_tensor(x_in.float(), 1/64., 0, dtype=torch.qint8)
+            #x_in_test = x_in_test.dequantize()
+            #print("after norm:", x_in_test.view(len(x_in_test), -1).norm(p=2, dim=1).mean())
+            #print("after:", x_in[0])
+            #exit(0)
+            #x_in = self.quan_dequan(x_in.float())
+            F_x = self.model((x_in).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
+
+            #F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
             assert F_x.dtype == dtype
             D_x = c_skip * x + c_out * F_x.to(torch.float32)
             return D_x
+
+            # F_x_q = self.quan_dequan(F_x.float())
+            # x_q = self.quan_dequan(x.float())
+            # c_skip_q = self.quan_dequan(c_skip)
+            # c_out_q = self.quan_dequan(c_out)
+            # D_x = c_skip_q * x_q + c_out_q * F_x_q
+            # return D_x.float()
+
+
+    def quan_dequan(self, input):
+        input_q = torch.quantize_per_tensor(input.float(), 1 / 32., 0, dtype=torch.qint8)
+        return input_q.dequantize()
 
     def round_sigma(self, sigma):
         return torch.as_tensor(sigma)

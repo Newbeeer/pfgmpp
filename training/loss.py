@@ -119,9 +119,12 @@ class EDMLoss:
                                                r[:, None]), dim=1).float()
             weight = torch.ones((len(perturbed_samples_vec), 1), device=images.device)
         elif pfgmv2:
+            # TODO change P_mean/P_std for D=128
             rnd_normal = torch.randn(images.shape[0], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
 
+            sigma_ = sigma.reshape((len(sigma), 1, 1, 1))
+            weight = (sigma_ ** 2 + self.sigma_data ** 2) / (sigma_ * self.sigma_data) ** 2
 
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
@@ -141,10 +144,10 @@ class EDMLoss:
             perturbation_x = perturbation_x.float()
 
             sigma = sigma.reshape((len(sigma), 1, 1, 1))
-            weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = perturbation_x.view_as(y)
             D_yn = net(y + n, sigma, labels, augment_labels=augment_labels)
+
 
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
@@ -155,20 +158,28 @@ class EDMLoss:
             n = torch.randn_like(y) * sigma
             D_yn = net(y + n, sigma, labels, augment_labels=augment_labels)
 
-        if stf or pfgm or pfgmv2:
+        if stf:
             ref_images[len(y):], augment_labels_2 = augment_pipe(ref_images[len(y):]) \
                 if augment_pipe is not None else (images, None)
             # update augmented original images
             ref_images[:len(y)] = y
-        if stf:
-            target = self.stf_scores(sigma.squeeze(), y+n, ref_images)
-            target = target.view_as(y)
-        elif pfgm:
-            target = self.pfgm_target(perturbed_samples_vec, ref_images)
-            target = target.view_as(D_yn)
-            #print(target.norm(p=2, dim=1).mean())
+
+        if pfgm:
+            if stf:
+                target = self.pfgm_target(perturbed_samples_vec, ref_images)
+                target = target.view_as(D_yn)
+                #print(target.norm(p=2, dim=1).mean())
+            else:
+                target = y
         elif pfgmv2:
-            target = self.pfgmv2_target(r.squeeze(), y+n, ref_images)
+            if stf:
+                target = self.pfgmv2_target(r.squeeze(), y+n, ref_images)
+                target = target.view_as(y)
+            else:
+                target = y
+        elif stf:
+            # Diffusion (D-> \inf)
+            target = self.stf_scores(sigma.squeeze(), y+n, ref_images)
             target = target.view_as(y)
         else:
             target = y
@@ -205,13 +216,14 @@ class EDMLoss:
             #self.pfgm_target(perturbed_samples_vec, samples_full)
             D_list = [2 ** i for i in range(1, 23)]
             D_list.append(307200)
+            D_list = [128, 256, 512, 1024, 2048]
             #D_list = [3072000]
             kl_list = []
             power_list = []
             #print(torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
             weight_diff = weights.squeeze().cpu().numpy()
             sigma_list = np.linspace(0, 1, 1000)
-            sigma_list = 0.01 * (80 / 0.01) ** sigma_list
+            sigma_list = 0.01 * (200 / 0.01) ** sigma_list
             tvd_collect = np.ones((len(D_list), len(sigma_list)))
             for c, cur_sigma in enumerate(sigma_list):
                 for i, D in enumerate(D_list):
@@ -231,7 +243,7 @@ class EDMLoss:
 
 
             #np.savez('tvd_prior', tvd=tvd_collect, power=power_list)
-            np.savez('tvd_prior', tvd=tvd_collect, sigma=sigma_list)
+            np.savez('tvd_prior_7_11', tvd=tvd_collect, sigma=sigma_list)
             exit(0)
             return gt_direction
 
@@ -294,6 +306,6 @@ class EDMLoss:
         gt_direction = gt_direction.view(gt_direction.size(0), -1)
         gt_direction = gt_direction[:, :-1].float()
 
-        return gt_direction
-        #return coeff.squeeze().float()
+        #return gt_direction
+        return coeff.squeeze().float()
 #----------------------------------------------------------------------------

@@ -21,7 +21,7 @@ from torch_utils import distributed as dist
 from torchvision.utils import make_grid, save_image
 from torch.distributions import Beta
 import glob
-
+from torch_utils import misc
 #----------------------------------------------------------------------------
 # Proposed EDM sampler (Algorithm 2).
 
@@ -97,6 +97,9 @@ def edm_sampler(
         sigma_min = max(sigma_min, net.sigma_min)
         sigma_max = min(sigma_max, net.sigma_max)
 
+        # if D == 128:
+        #     sigma_max = 200
+
         # Time step discretization.
         step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
         t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (
@@ -121,12 +124,14 @@ def edm_sampler(
 
             x_cur = x_next
 
-            gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
-            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            unit_gaussian = unit_gaussian.view_as(x_cur)
+            # gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
+            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            # unit_gaussian = unit_gaussian.view_as(x_cur)
             # if i < 10:
             #     x_cur += unit_gaussian * \
-            #             0.05 * torch.norm(x_cur.view(len(x_cur), -1), p=2, dim=1).reshape((len(x_cur), 1, 1, 1))
+            #             0.15 * torch.norm(x_cur.view(len(x_cur), -1), p=2, dim=1).reshape((len(x_cur), 1, 1, 1))
+
+            # quantization
             # norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
             # print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
             #      f"max: {max(norm):.3f}, min: {min(norm):.3f}")
@@ -294,7 +299,9 @@ class StackedRandomGenerator:
                 r_max = 2500 / np.sqrt(N / (D - 2 - 1))
                 sample_norm = torch.sqrt(inverse_beta) * r_max
             elif kwargs['pfgmv2']:
-                sample_norm = torch.sqrt(inverse_beta) * 80 * np.sqrt(D)
+                #S_max = 200 if D==128 else 80
+                S_max = 80
+                sample_norm = torch.sqrt(inverse_beta) * S_max * np.sqrt(D)
 
             gaussian = torch.randn(N).to(sample_norm.device)
             unit_gaussian = gaussian / torch.norm(gaussian, p=2)
@@ -401,7 +408,24 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
 
         data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
         #print(data.keys())
+        # interface_kwargs = dict(img_resolution=32, img_channels=3,
+        #                         label_dim=0, pfgm=False)
+        # network_kwargs = dnnlib.EasyDict()
+        # network_kwargs.update(model_type='SongUNet', embedding_type='fourier', encoder_type='residual', decoder_type='standard')
+        # network_kwargs.update(channel_mult_noise=2, resample_filter=[1,3,3,1], model_channels=128, channel_mult=[2,2,2])
+        # network_kwargs.class_name = 'training.networks.EDMPrecond'
+        # network_kwargs.augment_dim = 9
+        # net = dnnlib.util.construct_class_by_name(**network_kwargs, **interface_kwargs)
+        # misc.copy_params_and_buffers(src_module=data['ema'], dst_module=net, require_all=False)
+        # net = net.cuda()
         net = data['ema'].to(device)
+
+        # net = torch.quantization.quantize_dynamic(
+        #     net,  # the original model
+        #     {torch.nn.Linear, torch.nn.Conv2d},  # a set of layers to dynamically quantize
+        #     dtype=torch.qint8)  # the target dtype for quantized weights)
+
+
         #net = data['net'].to(device)
         # with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
         #     net = pickle.load(f)['ema'].to(device)
@@ -411,7 +435,9 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             temp_dir = os.path.join(outdir, f'ckpt_3_{ckpt_num:06d}')
         else:
             temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}')
-
+        
+        if os.path.exists(temp_dir):
+            continue
         # Other ranks follow.
         if dist.get_rank() == 0:
             torch.distributed.barrier()
