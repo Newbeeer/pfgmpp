@@ -13,6 +13,7 @@ import torch
 from torch_utils import persistence
 from torch.nn.functional import silu
 import torch.nn.functional as F
+import scipy.special as sc
 #----------------------------------------------------------------------------
 # Unified routine for initializing weights and biases.
 
@@ -141,6 +142,7 @@ class AttentionOp(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, dw):
+        # TODO float 16
         q, k, w = ctx.saved_tensors
         db = torch._softmax_backward_data(grad_output=dw.to(torch.float32), output=w.to(torch.float32), dim=2, input_dtype=torch.float32)
         dq = torch.einsum('nck,nqk->ncq', k.to(torch.float32), db).to(q.dtype) / np.sqrt(k.shape[1])
@@ -676,6 +678,8 @@ class EDMPrecond(torch.nn.Module):
         img_channels,                       # Number of color channels.
         label_dim       = 0,                # Number of class labels, 0 = unconditional.
         pfgm = False,
+        pfgmv2=False,
+        D = 128,
         use_fp16        = False,            # Execute the underlying model at FP16 precision?
         sigma_min       = 0,                # Minimum supported noise level.
         sigma_max       = float('inf'),     # Maximum supported noise level.
@@ -687,17 +691,25 @@ class EDMPrecond(torch.nn.Module):
         super().__init__()
         self.img_resolution = img_resolution
         self.img_channels = img_channels
+        self.D = D
+        self.N = img_channels * img_resolution * img_resolution
         self.label_dim = label_dim
         self.pfgm = pfgm
+        self.pfgmv2 = pfgmv2
         self.use_fp16 = use_fp16
         self.small = small
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
+        self.moment_half = sc.beta(self.N/2. + 0.5, D/2. - 0.5) / sc.beta(self.N/2., D/2.)
+        self.moment_one = sc.beta(self.N/2. + 1, D/2. - 1) / sc.beta(self.N/2., D/2.)
+        if self.moment_one is None:
+            self.moment_one = self.N / (self.D-1)
+        self.std_half = np.sqrt(self.moment_one - self.moment_half ** 2)
         self.model = globals()[model_type](img_resolution=img_resolution, in_channels=img_channels,
                                            out_channels=img_channels, pfgm=pfgm, label_dim=label_dim, **model_kwargs)
 
-    def forward(self, x, sigma, class_labels=None, D=128, force_fp32=False,  **model_kwargs):
+    def forward(self, x, sigma, class_labels=None, D=128, x_old=None, force_fp32=False, sigma_old=None, **model_kwargs):
 
         x = x.to(torch.float32)
         if self.pfgm:
@@ -716,35 +728,54 @@ class EDMPrecond(torch.nn.Module):
             return net_x, net_z
         else:
             sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1)
+            # if sigma_old is not None:
+            #     sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
+            #     r_old = sigma_old * np.sqrt(self.D)
+            #     std_old = (self.sigma_data ** 2 + sigma_old ** 2).sqrt()
+            #     std = (self.sigma_data ** 2 + sigma ** 2).sqrt()
+            #     #x = x / norm * norm_old
+            #
+            #     x_rescale_normal = (x) / std
+            #     #print("After rescale norm:", x_rescale_normal.view(len(x), -1).norm(p=2, dim=1).mean())
+            #     x = x_rescale_normal * std_old
+            #     print("After input norm:", x.view(len(x), -1).norm(p=2, dim=1).mean())
+            #     # use the old sigma
+            #     sigma = sigma_old
+
             class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim],
                                                                         device=x.device) if class_labels is None else class_labels.to(
                 torch.float32).reshape(-1, self.label_dim)
             dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
             if self.small:
-                #ve type
+                # ve type
                 c_skip = 1
                 c_out = sigma
                 c_in = 1
                 c_noise = (0.5 * sigma).log()
             else:
-                c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
-                c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
-                c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-                c_noise = sigma.log() / 4
+                if sigma_old is not None:
+                    sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
+                    c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
+                    c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
+                    c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+                    c_noise = sigma_old.log() / 4
+                    k = sigma / sigma_old
+
+                    c_skip_new = c_skip / k
+                    c_out_new = 1/c_out * (1-c_skip) / (1-c_skip_new)
+                    c_out_new = 1/c_out_new
+
+                    c_skip = c_skip_new
+                    c_out = c_out_new
+                else:
+                    c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
+                    c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
+                    c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+                    c_noise = sigma.log() / 4
 
             x_in = c_in * x
-            #print("before norm:", x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
-            #scale = (max(x_in.view(-1)) - min(x_in.view(-1))) / (2 ** 8)
-            #zero_p = - 2 ** 7 - min(x_in.view(-1)) / scale
-            #print("before norm:", x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
-            #print("before:", x_in[0])
-            #x_in_test = torch.quantize_per_tensor(x_in.float(), 1/64., 0, dtype=torch.qint8)
-            #x_in_test = x_in_test.dequantize()
-            #print("after norm:", x_in_test.view(len(x_in_test), -1).norm(p=2, dim=1).mean())
-            #print("after:", x_in[0])
-            #exit(0)
-            #x_in = self.quan_dequan(x_in.float())
+            #print("normalized norm:", x_in.view(len(x), -1).norm(p=2, dim=1).mean())
             F_x = self.model((x_in).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
 
             #F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)

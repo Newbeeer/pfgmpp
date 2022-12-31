@@ -101,22 +101,15 @@ def edm_sampler(
             sigma_min *= np.sqrt(1 + N/D)
             sigma_max *= np.sqrt(1 + N/D)
 
+        print("sigma max:", sigma_max, "sigma min:", sigma_min)
         # Time step discretization.
         step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
         t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (
                     sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
-        t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
+        #t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
+        #t_steps = torch.cat([net.round_sigma(t_steps), sigma_min * torch.ones_like(t_steps[:1])])
 
         if pfgmv2:
-            # N = net.img_channels * net.img_resolution * net.img_resolution
-            # samples_norm = torch.sqrt(latents) * sigma_max * np.sqrt(D)
-            # samples_norm = samples_norm.view(len(samples_norm), -1)
-            # # Uniformly sample the angle direction
-            # gaussian = torch.randn(len(latents), N).to(samples_norm.device)
-            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            # # Radius times the angle direction
-            # init_samples = unit_gaussian * samples_norm
-            # latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
             x_next = latents.to(torch.float64)
         else:
             x_next = latents.to(torch.float64) * t_steps[0]
@@ -125,15 +118,15 @@ def edm_sampler(
 
             x_cur = x_next
 
-            gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
-            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            unit_gaussian = unit_gaussian.view_as(x_cur)
-            if i < 10:
-                x_cur += torch.randn_like(x_cur) * t_cur * 0.15
-
-            norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
-            print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
-                 f"max: {max(norm):.3f}, min: {min(norm):.3f}")
+            # gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
+            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            # unit_gaussian = unit_gaussian.view_as(x_cur)
+            # if i < 10:
+            #     x_cur += torch.randn_like(x_cur) * t_cur * 0.15
+            #
+            # norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
+            # print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
+            #      f"max: {max(norm):.3f}, min: {min(norm):.3f}")
 
             # Increase noise temporarily.
             gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0

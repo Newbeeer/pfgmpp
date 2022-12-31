@@ -121,12 +121,12 @@ class EDMLoss:
         elif pfgmv2:
 
             rnd_normal = torch.randn(images.shape[0], device=images.device)
-            sigma = (rnd_normal * self.P_std + self.P_mean).exp()
-            if align:
-                sigma = sigma * np.sqrt(1 + (self.N)/self.D)
+            sigma_old = (rnd_normal * self.P_std + self.P_mean).exp()
 
-            sigma_ = sigma.reshape((len(sigma), 1, 1, 1))
-            weight = (sigma_ ** 2 + self.sigma_data ** 2) / (sigma_ * self.sigma_data) ** 2
+            if align:
+                sigma = sigma_old * np.sqrt(1 + self.N / self.D)
+            else:
+                sigma = sigma_old
 
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
@@ -137,7 +137,6 @@ class EDMLoss:
             # Sampling from p_r(R) by change-of-variable
             samples_norm = r * torch.sqrt(inverse_beta)
             samples_norm = samples_norm.view(len(samples_norm), -1)
-
             # Uniformly sample the angle direction
             gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
             unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
@@ -146,10 +145,44 @@ class EDMLoss:
             perturbation_x = perturbation_x.float()
 
             sigma = sigma.reshape((len(sigma), 1, 1, 1))
+            sigma_old = sigma_old.reshape((len(sigma_old), 1, 1, 1))
+
+            weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
+
+            c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
+            c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
+            k = sigma / sigma_old
+            c_skip_new = c_skip / k
+            c_out_new = 1 / c_out * (1 - c_skip) / (1 - c_skip_new)
+            c_out_new = 1 / c_out_new
+            weight = 1 / c_out_new ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = perturbation_x.view_as(y)
-            D_yn = net(y + n, sigma, labels, augment_labels=augment_labels)
+            D_yn = net(y + n, sigma, labels, sigma_old=sigma_old, D=self.D,  augment_labels=augment_labels)
 
+            # # ### Testing ###
+            # r = sigma_old.squeeze().double() * np.sqrt(self.D).astype(np.float64)
+            # # Sampling form inverse-beta distribution
+            # samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
+            #                               size=images.shape[0]).astype(np.double)
+            # inverse_beta = samples_norm / (1 - samples_norm)
+            # inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
+            # # Sampling from p_r(R) by change-of-variable
+            # samples_norm = r * torch.sqrt(inverse_beta)
+            # samples_norm = samples_norm.view(len(samples_norm), -1)
+            #
+            # # Uniformly sample the angle direction
+            # gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
+            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            # # Construct the perturbation for x
+            # perturbation_x = unit_gaussian * samples_norm
+            # perturbation_x = perturbation_x.float()
+            # n = perturbation_x.view_as(y)
+            # sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
+            # c_in = 1 / (self.sigma_data ** 2 + sigma_old ** 2).sqrt()
+            # x_in = (y+n) * c_in
+            # print("True input norm:", (y+n).view(len(x_in), -1).norm(p=2, dim=1).mean())
+            # print("True normalized norm:", x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
 
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
@@ -167,11 +200,8 @@ class EDMLoss:
             ref_images[:len(y)] = y
 
         if pfgm:
-            if stf:
-                target = self.pfgm_target(perturbed_samples_vec, ref_images)
-                target = target.view_as(D_yn)
-            else:
-                target = y
+            target = self.pfgm_target(perturbed_samples_vec, ref_images)
+            target = target.view_as(D_yn)
         elif pfgmv2:
             if stf:
                 target = self.pfgmv2_target(r.squeeze(), y+n, ref_images)
@@ -216,8 +246,8 @@ class EDMLoss:
             #                                   , dim=1)
             #self.pfgm_target(perturbed_samples_vec, samples_full)
             D_list = [2 ** i for i in range(1, 23)]
-            D_list.append(307200)
-            D_list = [128, 256, 512, 1024, 2048]
+            #D_list.append(307200)
+            #D_list = [128, 256, 512, 1024, 2048]
             #D_list = [3072000]
             kl_list = []
             power_list = []
@@ -237,6 +267,9 @@ class EDMLoss:
                     kl = 0.5 * abs(weights_pfgm -
                                    np.ones_like(weights_pfgm) / len(samples_full)).sum(1).mean()
                     # kl = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
+
+                    # kl = (weights_pfgm * np.log((weights_pfgm + 1e-5)/
+                    #                                   (np.ones_like(weights_pfgm) / len(samples_full) + 1e-5))).sum(1).mean()
                     # print("D:", D, "kl:", kl)
                     # kl_list.append(kl)
                     # power_list.append(i)
@@ -244,7 +277,8 @@ class EDMLoss:
 
 
             #np.savez('tvd_prior', tvd=tvd_collect, power=power_list)
-            np.savez('tvd_prior_7_11', tvd=tvd_collect, sigma=sigma_list)
+            np.savez('tvd_prior_1_23_no_align', tvd=tvd_collect, sigma=sigma_list)
+            #np.savez('kl_prior_1_23', tvd=tvd_collect, sigma=sigma_list)
             exit(0)
             return gt_direction
 
@@ -307,6 +341,6 @@ class EDMLoss:
         gt_direction = gt_direction.view(gt_direction.size(0), -1)
         gt_direction = gt_direction[:, :-1].float()
 
-        #return gt_direction
-        return coeff.squeeze().float()
+        return gt_direction
+        #return coeff.squeeze().float()
 #----------------------------------------------------------------------------
