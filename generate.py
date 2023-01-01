@@ -28,7 +28,8 @@ from torch_utils import misc
 def edm_sampler(
     net, latents, class_labels=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
-    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, pfgm=False, pfgmv2=False, align=False, D=128
+    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, pfgm=False,
+    pfgmv2=False, align=False, D=128, align_precond=False,
 ):
 
     if pfgm:
@@ -132,15 +133,22 @@ def edm_sampler(
             gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
             t_hat = net.round_sigma(t_cur + gamma * t_cur)
             x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
-
             # Euler step.
-            denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
+            if align_precond:
+                t_old = t_hat / np.sqrt(1 + N/D)
+                denoised = net(x_hat, t_hat, class_labels, sigma_old=t_old).to(torch.float64)
+            else:
+                denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
             d_cur = (x_hat - denoised) / t_hat
             x_next = x_hat + (t_next - t_hat) * d_cur
 
             # Apply 2nd order correction.
             if i < num_steps - 1:
-                denoised = net(x_next, t_next, class_labels).to(torch.float64)
+                if align_precond:
+                    t_old = t_next / np.sqrt(1 + N/D)
+                    denoised = net(x_next, t_next, class_labels, sigma_old=t_old).to(torch.float64)
+                else:
+                    denoised = net(x_next, t_next, class_labels).to(torch.float64)
                 d_prime = (x_next - denoised) / t_next
                 x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
     #print("mean final norm:", x_next.reshape((len(x_next), -1)).norm(p=2, dim=1).mean(), x_next.shape)
@@ -359,6 +367,7 @@ def parse_int_list(s):
 @click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--align',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--align_precond',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
 
 def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, device=torch.device('cuda'), **sampler_kwargs):
@@ -415,6 +424,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         # misc.copy_params_and_buffers(src_module=data['ema'], dst_module=net, require_all=False)
         # net = net.cuda()
         net = data['ema'].to(device)
+        assert net.D == aug_dim
 
         # net = torch.quantization.quantize_dynamic(
         #     net,  # the original model

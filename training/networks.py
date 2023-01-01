@@ -701,15 +701,17 @@ class EDMPrecond(torch.nn.Module):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
+        # no use #
         self.moment_half = sc.beta(self.N/2. + 0.5, D/2. - 0.5) / sc.beta(self.N/2., D/2.)
         self.moment_one = sc.beta(self.N/2. + 1, D/2. - 1) / sc.beta(self.N/2., D/2.)
         if self.moment_one is None:
             self.moment_one = self.N / (self.D-1)
         self.std_half = np.sqrt(self.moment_one - self.moment_half ** 2)
+        ###########
         self.model = globals()[model_type](img_resolution=img_resolution, in_channels=img_channels,
                                            out_channels=img_channels, pfgm=pfgm, label_dim=label_dim, **model_kwargs)
 
-    def forward(self, x, sigma, class_labels=None, D=128, x_old=None, force_fp32=False, sigma_old=None, **model_kwargs):
+    def forward(self, x, sigma, class_labels=None, D=128, force_fp32=False, sigma_old=None, **model_kwargs):
 
         x = x.to(torch.float32)
         if self.pfgm:
@@ -728,20 +730,6 @@ class EDMPrecond(torch.nn.Module):
             return net_x, net_z
         else:
             sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1)
-            # if sigma_old is not None:
-            #     sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
-            #     r_old = sigma_old * np.sqrt(self.D)
-            #     std_old = (self.sigma_data ** 2 + sigma_old ** 2).sqrt()
-            #     std = (self.sigma_data ** 2 + sigma ** 2).sqrt()
-            #     #x = x / norm * norm_old
-            #
-            #     x_rescale_normal = (x) / std
-            #     #print("After rescale norm:", x_rescale_normal.view(len(x), -1).norm(p=2, dim=1).mean())
-            #     x = x_rescale_normal * std_old
-            #     print("After input norm:", x.view(len(x), -1).norm(p=2, dim=1).mean())
-            #     # use the old sigma
-            #     sigma = sigma_old
-
             class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim],
                                                                         device=x.device) if class_labels is None else class_labels.to(
                 torch.float32).reshape(-1, self.label_dim)
@@ -755,6 +743,7 @@ class EDMPrecond(torch.nn.Module):
                 c_noise = (0.5 * sigma).log()
             else:
                 if sigma_old is not None:
+                    # align preconditioning
                     sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
                     c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
                     c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()

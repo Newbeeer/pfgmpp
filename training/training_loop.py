@@ -51,7 +51,8 @@ def training_loop(
     pfgmv2              = False,
     align               = False,
     rbatch              = 4096,
-    D = 128,
+    D                   = 128,
+    opts                = None
 ):
     # Initialize.
     start_time = time.time()
@@ -84,7 +85,8 @@ def training_loop(
 
     # Construct network.
     dist.print0('Constructing network...')
-    interface_kwargs = dict(img_resolution=dataset_obj.resolution, img_channels=dataset_obj.num_channels, label_dim=dataset_obj.label_dim, pfgm=pfgm, pfgmv2=pfgmv2, D=D)
+    interface_kwargs = dict(img_resolution=dataset_obj.resolution, img_channels=dataset_obj.num_channels, label_dim=dataset_obj.label_dim,
+                            pfgm=pfgm, pfgmv2=pfgmv2, D=D)
     net = dnnlib.util.construct_class_by_name(**network_kwargs, **interface_kwargs) # subclass of torch.nn.Module
     net.train().requires_grad_(True).to(device)
     if dist.get_rank() == 0:
@@ -155,7 +157,7 @@ def training_loop(
 
                 # B * C * H * W
                 loss = loss_fn(net=ddp, images=batch_images, labels=batch_labels, augment_pipe=augment_pipe, stf=stf,
-                               pfgm=pfgm, pfgmv2=pfgmv2, align=align, ref_images=images)
+                               pfgm=pfgm, pfgmv2=pfgmv2, align=align, align_precond=opts.align_precond, ref_images=images)
                 training_stats.report('Loss/loss', loss)
                 #dist.print0("loss:", loss.mean().item())
                 loss.sum().mul(loss_scaling / (batch_size // dist.get_world_size())).backward()

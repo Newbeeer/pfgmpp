@@ -65,15 +65,16 @@ class VELoss:
 
 @persistence.persistent_class
 class EDMLoss:
-    def __init__(self, P_mean=-1.2, P_std=1.2, sigma_data=0.5, D=128, N=3072, gamma=5):
+    def __init__(self, P_mean=-1.2, P_std=1.2, sigma_data=0.5, D=128, N=3072, gamma=5, opts=None):
         self.P_mean = P_mean
         self.P_std = P_std
         self.sigma_data = sigma_data
         self.D = D
         self.N = N
         self.gamma = gamma
+        self.opts = opts
 
-    def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, ref_images=None):
+    def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, align_precond=False, ref_images=None):
         if pfgm:
             r_min = 0.55 / np.sqrt(3072 / (self.D - 2 - 1))
             r_max = 2500 / np.sqrt(3072 / (self.D - 2 - 1))
@@ -147,43 +148,23 @@ class EDMLoss:
             sigma = sigma.reshape((len(sigma), 1, 1, 1))
             sigma_old = sigma_old.reshape((len(sigma_old), 1, 1, 1))
 
-            weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
-
-            c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
-            c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
-            k = sigma / sigma_old
-            c_skip_new = c_skip / k
-            c_out_new = 1 / c_out * (1 - c_skip) / (1 - c_skip_new)
-            c_out_new = 1 / c_out_new
-            weight = 1 / c_out_new ** 2
-            y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
-            n = perturbation_x.view_as(y)
-            D_yn = net(y + n, sigma, labels, sigma_old=sigma_old, D=self.D,  augment_labels=augment_labels)
-
-            # # ### Testing ###
-            # r = sigma_old.squeeze().double() * np.sqrt(self.D).astype(np.float64)
-            # # Sampling form inverse-beta distribution
-            # samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
-            #                               size=images.shape[0]).astype(np.double)
-            # inverse_beta = samples_norm / (1 - samples_norm)
-            # inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
-            # # Sampling from p_r(R) by change-of-variable
-            # samples_norm = r * torch.sqrt(inverse_beta)
-            # samples_norm = samples_norm.view(len(samples_norm), -1)
-            #
-            # # Uniformly sample the angle direction
-            # gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
-            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            # # Construct the perturbation for x
-            # perturbation_x = unit_gaussian * samples_norm
-            # perturbation_x = perturbation_x.float()
-            # n = perturbation_x.view_as(y)
-            # sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
-            # c_in = 1 / (self.sigma_data ** 2 + sigma_old ** 2).sqrt()
-            # x_in = (y+n) * c_in
-            # print("True input norm:", (y+n).view(len(x_in), -1).norm(p=2, dim=1).mean())
-            # print("True normalized norm:", x_in.view(len(x_in), -1).norm(p=2, dim=1).mean())
-
+            if align_precond:
+                print('test')
+                c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
+                c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
+                k = sigma / sigma_old
+                c_skip_new = c_skip / k
+                c_out_new = 1 / c_out * (1 - c_skip) / (1 - c_skip_new)
+                c_out_new = 1 / c_out_new
+                weight = 1 / c_out_new ** 2
+                y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
+                n = perturbation_x.view_as(y)
+                D_yn = net(y + n, sigma, labels, sigma_old=sigma_old, D=self.D, augment_labels=augment_labels)
+            else:
+                weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
+                y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
+                n = perturbation_x.view_as(y)
+                D_yn = net(y + n, sigma, labels, sigma_old=None, D=self.D, augment_labels=augment_labels)
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()

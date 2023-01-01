@@ -49,6 +49,7 @@ def parse_int_list(s):
 @click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--small',          help='small network', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--align',          help='small network', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--align_precond',          help='small network', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--arch',          help='Network architecture', metavar='ddpmpp|ncsnpp|adm',          type=click.Choice(['ddpmpp', 'ncsnpp', 'adm']), default='ddpmpp', show_default=True)
 @click.option('--precond',       help='Preconditioning & loss function', metavar='vp|ve|edm',       type=click.Choice(['vp', 've', 'edm']), default='edm', show_default=True)
@@ -146,6 +147,7 @@ def main(**kwargs):
         assert opts.precond == 'edm'
         c.network_kwargs.class_name = 'training.networks.EDMPrecond'
         c.loss_kwargs.class_name = 'training.loss.EDMLoss'
+    c.loss_kwargs.opts = opts
 
     # Network options.
     if opts.cbase is not None:
@@ -213,6 +215,7 @@ def main(**kwargs):
     if opts.name:
         c.run_dir = os.path.join(opts.outdir, opts.name)
 
+    c.opts = opts
     # Print options.
     dist.print0()
     dist.print0('Training options:')
