@@ -149,14 +149,15 @@ class EDMLoss:
             sigma_old = sigma_old.reshape((len(sigma_old), 1, 1, 1))
 
             if align_precond:
-                print('test')
                 c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
                 c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
                 k = sigma / sigma_old
-                c_skip_new = c_skip / k
-                c_out_new = 1 / c_out * (1 - c_skip) / (1 - c_skip_new)
-                c_out_new = 1 / c_out_new
-                weight = 1 / c_out_new ** 2
+
+                c_3 = c_skip / c_out
+                a_3 = c_3 / k
+                a_out = 1 / (1 / c_out - c_3 + a_3)
+
+                weight = 1 / a_out ** 2
                 y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
                 n = perturbation_x.view_as(y)
                 D_yn = net(y + n, sigma, labels, sigma_old=sigma_old, D=self.D, augment_labels=augment_labels)

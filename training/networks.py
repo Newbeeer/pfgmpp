@@ -750,13 +750,17 @@ class EDMPrecond(torch.nn.Module):
                     c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
                     c_noise = sigma_old.log() / 4
                     k = sigma / sigma_old
+                    #print(f"vanilla c skip:{c_skip}, c out:{c_out}")
 
-                    c_skip_new = c_skip / k
-                    c_out_new = 1/c_out * (1-c_skip) / (1-c_skip_new)
-                    c_out_new = 1/c_out_new
+                    c_3 = c_skip / c_out
+                    a_3 = c_3 / k
+                    a_out = 1 / (1/c_out-c_3+a_3)
+                    a_skip = a_out * a_3
 
-                    c_skip = c_skip_new
-                    c_out = c_out_new
+                    c_skip = a_skip
+                    c_out = a_out
+
+                    #print(f"c skip:{c_skip}, c out:{c_out}")
                 else:
                     c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
                     c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
@@ -764,7 +768,7 @@ class EDMPrecond(torch.nn.Module):
                     c_noise = sigma.log() / 4
 
             x_in = c_in * x
-            #print("normalized norm:", x_in.view(len(x), -1).norm(p=2, dim=1).mean())
+            #print("normalized norm:", x_in.view(len(x), -1).norm(p=2, dim=1).mean().item())
             F_x = self.model((x_in).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
 
             #F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)

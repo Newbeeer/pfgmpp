@@ -102,14 +102,14 @@ def edm_sampler(
             sigma_min *= np.sqrt(1 + N/D)
             sigma_max *= np.sqrt(1 + N/D)
 
-        print("sigma max:", sigma_max, "sigma min:", sigma_min)
+        #print("sigma max:", sigma_max, "sigma min:", sigma_min)
         # Time step discretization.
         step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
         t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (
                     sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
-        #t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
-        #t_steps = torch.cat([net.round_sigma(t_steps), sigma_min * torch.ones_like(t_steps[:1])])
+        t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
+        #t_steps = t_steps[:-2]
         if pfgmv2:
             x_next = latents.to(torch.float64)
         else:
@@ -135,7 +135,9 @@ def edm_sampler(
             x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
             # Euler step.
             if align_precond:
+
                 t_old = t_hat / np.sqrt(1 + N/D)
+                #print(t_old, t_hat)
                 denoised = net(x_hat, t_hat, class_labels, sigma_old=t_old).to(torch.float64)
             else:
                 denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
@@ -414,7 +416,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
         #print(data.keys())
         # interface_kwargs = dict(img_resolution=32, img_channels=3,
-        #                         label_dim=0, pfgm=False)
+        #                         label_dim=0, pfgm=False, pfgmv2=True)
         # network_kwargs = dnnlib.EasyDict()
         # network_kwargs.update(model_type='SongUNet', embedding_type='fourier', encoder_type='residual', decoder_type='standard')
         # network_kwargs.update(channel_mult_noise=2, resample_filter=[1,3,3,1], model_channels=128, channel_mult=[2,2,2])
