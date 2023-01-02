@@ -193,11 +193,10 @@ You can train new models using `train.py`. For example:
 CUDA_VISIBLE_DEVICES=4,5,6,7 torchrun --standalone --nproc_per_node=4 train.py --outdir=training-runs --name pfgm_ncsnpp_D_2048_align_1_stf_0 \
 --data=datasets/cifar10-32x32.zip --cond=0 --arch=ncsnpp \
 --pfgmv2=1 --batch 512 \
---align=1 --aug_dim 2048 --align_precond=1
+--align=1 --aug_dim 2048
 
 
 align: Align the hyper-parameters for different D  (1:yes | 0:no | default:no)
-align_precond: Align the hyper-parameters for precondition  (1:yes | 0:no | default:no)
 aug_dim: D (additional dimensions)  
 ```
 
