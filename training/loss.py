@@ -133,10 +133,10 @@ class EDMLoss:
             # Sampling form inverse-beta distribution
             samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
                                           size=images.shape[0]).astype(np.double)
-            inverse_beta = samples_norm / (1 - samples_norm)
+            inverse_beta = samples_norm / (1 - samples_norm +1e-8)
             inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
             # Sampling from p_r(R) by change-of-variable
-            samples_norm = r * torch.sqrt(inverse_beta)
+            samples_norm = r * torch.sqrt(inverse_beta +1e-8)
             samples_norm = samples_norm.view(len(samples_norm), -1)
             # Uniformly sample the angle direction
             gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)

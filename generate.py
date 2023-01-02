@@ -135,7 +135,6 @@ def edm_sampler(
             x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
             # Euler step.
             if align_precond:
-
                 t_old = t_hat / np.sqrt(1 + N/D)
                 #print(t_old, t_hat)
                 denoised = net(x_hat, t_hat, class_labels, sigma_old=t_old).to(torch.float64)
