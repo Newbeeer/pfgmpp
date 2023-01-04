@@ -414,8 +414,6 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
             # print("omit")
             continue
-        if os.path.exists(ckpt_dir):
-            continue
 
         data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
         #print(data.keys())
@@ -448,6 +446,9 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         else:
             temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}')
 
+
+        if os.path.exists(temp_dir):
+            continue
         # if os.path.exists(temp_dir):
         #     continue
         # Other ranks follow.
