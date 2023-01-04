@@ -358,6 +358,7 @@ def parse_int_list(s):
 @click.option('--S_max', 'S_max',          help='Stoch. max noise level', metavar='FLOAT',                          type=click.FloatRange(min=0), default=0, show_default=True)
 @click.option('--S_noise', 'S_noise',      help='Stoch. noise inflation', metavar='FLOAT',                          type=float, default=0, show_default=True)
 @click.option('--ckpt', 'ckpt',      help='begin ckpt', metavar='INT',                          type=int, default=0, show_default=True)
+@click.option('--resume', 'resume',      help='resume ckpt', metavar='INT',                          type=int, default=None, show_default=True)
 @click.option('--end_ckpt', 'end_ckpt',      help='end ckpt', metavar='INT',                          type=int, default=100000000, show_default=True)
 
 @click.option('--solver',                  help='Ablate ODE solver', metavar='euler|heun',                          type=click.Choice(['euler', 'heun']))
@@ -401,6 +402,8 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     #print(stats)
     #done_list = [150177, 152686, 155194, 162721, 167738, 172756, 180282]
     #done_list = [125089]
+    done_list = []
+
     for ckpt_dir in stats:
         # Load network.
         dist.print0(f'Loading network from "{ckpt_dir}"...')
@@ -410,6 +413,8 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         #ckpt_num = int(ckpt_dir[-10:-4])
         if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
             # print("omit")
+            continue
+        if os.path.exists(ckpt_dir):
             continue
 
         data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
