@@ -400,7 +400,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     #stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     #print(stats)
     #done_list = [150177, 152686, 155194, 162721, 167738, 172756, 180282]
-    done_list = [125089]
+    #done_list = [125089]
     for ckpt_dir in stats:
         # Load network.
         dist.print0(f'Loading network from "{ckpt_dir}"...')

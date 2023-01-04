@@ -125,6 +125,7 @@ class EDMLoss:
             sigma_old = (rnd_normal * self.P_std + self.P_mean).exp()
 
             if align:
+                # work align for large D
                 sigma = sigma_old * np.sqrt(1 + self.N / self.D)
             else:
                 sigma = sigma_old
