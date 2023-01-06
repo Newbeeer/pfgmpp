@@ -735,43 +735,42 @@ class EDMPrecond(torch.nn.Module):
                 torch.float32).reshape(-1, self.label_dim)
             dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
-            if self.small:
-                # ve type
-                c_skip = 1
-                c_out = sigma
-                c_in = 1
-                c_noise = (0.5 * sigma).log()
+            # if self.small:
+            #     # ve type
+            #     c_skip = 1
+            #     c_out = sigma
+            #     c_in = 1
+            #     c_noise = (0.5 * sigma).log()
+            # else:
+            if sigma_old is not None:
+                # align preconditioning
+                sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
+                c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
+                c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
+                c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+                c_noise = sigma_old.log() / 4
+                k = sigma / sigma_old
+                #print(f"vanilla c skip:{c_skip}, c out:{c_out}")
+
+                c_3 = c_skip / c_out
+                a_3 = c_3 / k
+                a_out = 1 / (1/c_out-c_3+a_3)
+                a_skip = a_out * a_3
+
+                c_skip = a_skip
+                c_out = a_out
+
+                #print(f"c skip:{c_skip}, c out:{c_out}")
             else:
-                if sigma_old is not None:
-                    # align preconditioning
-                    sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
-                    c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
-                    c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
-                    c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-                    c_noise = sigma_old.log() / 4
-                    k = sigma / sigma_old
-                    #print(f"vanilla c skip:{c_skip}, c out:{c_out}")
-
-                    c_3 = c_skip / c_out
-                    a_3 = c_3 / k
-                    a_out = 1 / (1/c_out-c_3+a_3)
-                    a_skip = a_out * a_3
-
-                    c_skip = a_skip
-                    c_out = a_out
-
-                    #print(f"c skip:{c_skip}, c out:{c_out}")
-                else:
-                    c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
-                    c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
-                    c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-                    c_noise = sigma.log() / 4
+                c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
+                c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
+                c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+                c_noise = sigma.log() / 4
 
             x_in = c_in * x
             #print("normalized norm:", x_in.view(len(x), -1).norm(p=2, dim=1).mean().item())
             F_x = self.model((x_in).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
 
-            #F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
             assert F_x.dtype == dtype
             D_x = c_skip * x + c_out * F_x.to(torch.float32)
             return D_x
