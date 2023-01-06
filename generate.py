@@ -28,7 +28,7 @@ from torch_utils import misc
 def edm_sampler(
     net, latents, class_labels=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
-    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, pfgm=False,
+    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, alpha=0., pfgm=False,
     pfgmv2=False, align=False, D=128, align_precond=False,
 ):
 
@@ -119,12 +119,15 @@ def edm_sampler(
 
             x_cur = x_next
 
-            # gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
-            # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            # unit_gaussian = unit_gaussian.view_as(x_cur)
-            # if i < 10:
-            #     x_cur += torch.randn_like(x_cur) * t_cur * 0.15
-            #
+            gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
+            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            unit_gaussian = unit_gaussian.view_as(x_cur)
+            #if i < 15:
+            x_cur += torch.randn_like(x_cur) * t_cur * alpha
+            # radius = x_cur.view(len(x_cur), -1).norm(p=2, dim=1) * alpha
+            # radius = radius.reshape((-1, 1, 1, 1))
+            # x_cur += unit_gaussian * radius
+
             # norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
             # print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
             #      f"max: {max(norm):.3f}, min: {min(norm):.3f}")
@@ -357,6 +360,7 @@ def parse_int_list(s):
 @click.option('--S_min', 'S_min',          help='Stoch. min noise level', metavar='FLOAT',                          type=click.FloatRange(min=0), default=0, show_default=True)
 @click.option('--S_max', 'S_max',          help='Stoch. max noise level', metavar='FLOAT',                          type=click.FloatRange(min=0), default=0, show_default=True)
 @click.option('--S_noise', 'S_noise',      help='Stoch. noise inflation', metavar='FLOAT',                          type=float, default=0, show_default=True)
+@click.option('--alpha', 'alpha',          help='noise norm', metavar='FLOAT',                          type=click.FloatRange(min=0), default=0, show_default=True)
 @click.option('--ckpt', 'ckpt',      help='begin ckpt', metavar='INT',                          type=int, default=0, show_default=True)
 @click.option('--resume', 'resume',      help='resume ckpt', metavar='INT',                          type=int, default=None, show_default=True)
 @click.option('--end_ckpt', 'end_ckpt',      help='end ckpt', metavar='INT',                          type=int, default=100000000, show_default=True)
@@ -365,6 +369,7 @@ def parse_int_list(s):
 @click.option('--disc', 'discretization',  help='Ablate time step discretization {t_i}', metavar='vp|ve|iddpm|edm', type=click.Choice(['vp', 've', 'iddpm', 'edm']))
 @click.option('--schedule',                help='Ablate noise schedule sigma(t)', metavar='vp|ve|linear',           type=click.Choice(['vp', 've', 'linear']))
 @click.option('--scaling',                 help='Ablate signal scaling s(t)', metavar='vp|none',                    type=click.Choice(['vp', 'none']))
+@click.option('--edm',          help='load edm model', metavar='BOOL',              type=bool, default=False, show_default=True)
 
 @click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
@@ -372,7 +377,7 @@ def parse_int_list(s):
 @click.option('--align_precond',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
 
-def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, device=torch.device('cuda'), **sampler_kwargs):
+def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, edm, device=torch.device('cuda'), **sampler_kwargs):
     """Generate random images using the techniques described in the paper
     "Elucidating the Design Space of Diffusion-Based Generative Models".
 
@@ -393,12 +398,10 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
 
-    # Rank 0 goes first.
-    if dist.get_rank() != 0:
-        torch.distributed.barrier()
-
-    stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
-    #stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
+    if not edm:
+        stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
+    else:
+        stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     #print(stats)
     #done_list = [150177, 152686, 155194, 162721, 167738, 172756, 180282]
     #done_list = [125089]
@@ -407,38 +410,35 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     for ckpt_dir in stats:
         # Load network.
         dist.print0(f'Loading network from "{ckpt_dir}"...')
+        # Rank 0 goes first.
+        if dist.get_rank() != 0:
+            torch.distributed.barrier()
         # with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
         #     net = pickle.load(f)['ema'].to(device)
-        ckpt_num = int(ckpt_dir[-9:-3])
-        #ckpt_num = int(ckpt_dir[-10:-4])
-        if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
-            # print("omit")
-            continue
 
-        data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
-        #print(data.keys())
-        # interface_kwargs = dict(img_resolution=32, img_channels=3,
-        #                         label_dim=0, pfgm=False, pfgmv2=True)
-        # network_kwargs = dnnlib.EasyDict()
-        # network_kwargs.update(model_type='SongUNet', embedding_type='fourier', encoder_type='residual', decoder_type='standard')
-        # network_kwargs.update(channel_mult_noise=2, resample_filter=[1,3,3,1], model_channels=128, channel_mult=[2,2,2])
-        # network_kwargs.class_name = 'training.networks.EDMPrecond'
-        # network_kwargs.augment_dim = 9
-        # net = dnnlib.util.construct_class_by_name(**network_kwargs, **interface_kwargs)
-        # misc.copy_params_and_buffers(src_module=data['ema'], dst_module=net, require_all=False)
-        # net = net.cuda()
-        net = data['ema'].to(device)
-        assert net.D == aug_dim
+        if edm:
+            with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
+                net = pickle.load(f)['ema'].to(device)
+            ckpt_num = 0
+        else:
+            ckpt_num = int(ckpt_dir[-9:-3])
+            if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
+                continue
+            data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
+            # print(data.keys())
+            # interface_kwargs = dict(img_resolution=32, img_channels=3,
+            #                         label_dim=0, pfgm=False, pfgmv2=True)
+            # network_kwargs = dnnlib.EasyDict()
+            # network_kwargs.update(model_type='SongUNet', embedding_type='fourier', encoder_type='residual', decoder_type='standard')
+            # network_kwargs.update(channel_mult_noise=2, resample_filter=[1,3,3,1], model_channels=128, channel_mult=[2,2,2])
+            # network_kwargs.class_name = 'training.networks.EDMPrecond'
+            # network_kwargs.augment_dim = 9
+            # net = dnnlib.util.construct_class_by_name(**network_kwargs, **interface_kwargs)
+            # misc.copy_params_and_buffers(src_module=data['ema'], dst_module=net, require_all=False)
+            # net = net.cuda()
+            net = data['ema'].to(device)
+            assert net.D == aug_dim
 
-        # net = torch.quantization.quantize_dynamic(
-        #     net,  # the original model
-        #     {torch.nn.Linear, torch.nn.Conv2d},  # a set of layers to dynamically quantize
-        #     dtype=torch.qint8)  # the target dtype for quantized weights)
-
-
-        #net = data['net'].to(device)
-        # with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
-        #     net = pickle.load(f)['ema'].to(device)
         if seeds[-1] > 49999 and seeds[-1] <= 99999:
             temp_dir = os.path.join(outdir, f'ckpt_2_{ckpt_num:06d}')
         elif seeds[-1] > 99999:
@@ -446,11 +446,9 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         else:
             temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}')
 
-
-        if os.path.exists(temp_dir):
+        if os.path.exists(temp_dir) and not save_images:
             continue
-        # if os.path.exists(temp_dir):
-        #     continue
+
         # Other ranks follow.
         if dist.get_rank() == 0:
             torch.distributed.barrier()
@@ -494,15 +492,17 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             if save_images:
                 # save a small batch of images
                 images_ = (images + 1) / 2.
-                image_grid = make_grid(images_, nrow=20)
-                save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}.png'))
+                print("len:", len(images))
+                image_grid = make_grid(images_, nrow=int(np.sqrt(len(images))))
+                alpha = sampler_kwargs['alpha']
+                save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}_{alpha}.png'))
                 exit(0)
                 break
             # Save images.
             images_np = (images * 127.5 + 128).clip(0, 255).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
 
             for seed, image_np in zip(batch_seeds, images_np):
-                #print(seed)
+
                 #image_dir = os.path.join(temp_dir, f'{seed - seed % 1000:06d}') if subdirs else outdir
                 image_dir = os.path.join(temp_dir, f'{seed - seed % 1000:06d}')
                 os.makedirs(image_dir, exist_ok=True)
