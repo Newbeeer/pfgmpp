@@ -402,9 +402,6 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
     else:
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
-    #print(stats)
-    #done_list = [150177, 152686, 155194, 162721, 167738, 172756, 180282]
-    #done_list = [125089]
     done_list = []
 
     for ckpt_dir in stats:
@@ -422,8 +419,6 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             ckpt_num = 0
         else:
             ckpt_num = int(ckpt_dir[-9:-3])
-            if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
-                continue
             data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
             # print(data.keys())
             # interface_kwargs = dict(img_resolution=32, img_channels=3,
@@ -446,12 +441,17 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         else:
             temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}')
 
-        if os.path.exists(temp_dir) and not save_images:
-            continue
-
         # Other ranks follow.
         if dist.get_rank() == 0:
             torch.distributed.barrier()
+
+        if not edm:
+            if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
+                continue
+        if os.path.exists(temp_dir) and not save_images:
+            continue
+
+
 
         # Loop over batches.
         dist.print0(f'Generating {len(seeds)} images to "{temp_dir}"...')
