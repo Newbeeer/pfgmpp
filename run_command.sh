@@ -31,3 +31,4 @@ torchrun --standalone --nproc_per_node=8 generate.py \
   --seeds=0-49999 --outdir=./training-runs/3072000_stf_0_align_0 \
   --ckpt 100000 --pfgmv2=1 --align=0 --aug_dim=3072000
 # edm
+
