@@ -404,8 +404,8 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     done_list = []
 
-    alpha_list = [i/20. for i in range(10)]
-
+    #step_list = [10, 12, 14, 16, 18, 20, 22, 24]
+    step_list = [20, 22, 24, 26, 28, 30]
     for ckpt_dir in stats:
         # Load network.
         dist.print0(f'Loading network from "{ckpt_dir}"...')
@@ -429,14 +429,14 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         if dist.get_rank() == 0:
             torch.distributed.barrier()
 
-        for alpha in alpha_list:
+        for steps in step_list:
 
             if seeds[-1] > 49999 and seeds[-1] <= 99999:
-                temp_dir = os.path.join(outdir, f'ckpt_2_{ckpt_num:06d}_alpha_{alpha}')
+                temp_dir = os.path.join(outdir, f'ckpt_2_{ckpt_num:06d}_steps_{steps}')
             elif seeds[-1] > 99999:
-                temp_dir = os.path.join(outdir, f'ckpt_3_{ckpt_num:06d}_alpha_{alpha}')
+                temp_dir = os.path.join(outdir, f'ckpt_3_{ckpt_num:06d}_steps_{steps}')
             else:
-                temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}_alpha_{alpha}')
+                temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}_steps_{steps}')
 
             if not edm:
                 if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
@@ -477,11 +477,13 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
 
                 # Generate images.
                 sampler_kwargs = {key: value for key, value in sampler_kwargs.items() if value is not None}
+                sampler_kwargs['num_steps'] = steps
                 have_ablation_kwargs = any(
                     x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
                 sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
                 images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
-                                    pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, alpha=alpha, **sampler_kwargs)
+                                    pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align,  **sampler_kwargs)
+
                 # Save images.
                 images_np = (images * 127.5 + 128).clip(0, 255).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
 

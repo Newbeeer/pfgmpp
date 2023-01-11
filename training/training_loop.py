@@ -98,8 +98,11 @@ def training_loop(
             misc.print_module_summary(net, [images, sigma, labels], max_nesting=2)
     # Setup optimizer.
     dist.print0('Setting up optimizer...')
+    loss_kwargs.D = D
+    loss_kwargs.N = net.img_channels * net.img_resolution * net.img_resolution
     loss_fn = dnnlib.util.construct_class_by_name(**loss_kwargs) # training.loss.(VP|VE|EDM)Loss
-    loss_fn.D = D
+
+
     optimizer = dnnlib.util.construct_class_by_name(params=net.parameters(), **optimizer_kwargs) # subclass of torch.optim.Optimizer
     augment_pipe = dnnlib.util.construct_class_by_name(**augment_kwargs) if augment_kwargs is not None else None # training.augment.AugmentPipe
     ddp = torch.nn.parallel.DistributedDataParallel(net, device_ids=[device], broadcast_buffers=False)
@@ -163,7 +166,7 @@ def training_loop(
                 loss = loss_fn(net=ddp, images=batch_images, labels=batch_labels, augment_pipe=augment_pipe, stf=stf,
                                pfgm=pfgm, pfgmv2=pfgmv2, align=align, align_precond=opts.align_precond, ref_images=images)
                 training_stats.report('Loss/loss', loss)
-                #dist.print0("loss:", loss.mean().item())
+                dist.print0("loss:", loss.mean().item())
                 loss.sum().mul(loss_scaling / (batch_size // dist.get_world_size())).backward()
 
         # Update weights.

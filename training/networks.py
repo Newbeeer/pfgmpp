@@ -586,7 +586,7 @@ class VEPrecond(torch.nn.Module):
         self.sigma_max = sigma_max
         self.model = globals()[model_type](img_resolution=img_resolution, in_channels=img_channels, out_channels=img_channels, label_dim=label_dim, **model_kwargs)
 
-    def forward(self, x, sigma, class_labels=None, force_fp32=False, **model_kwargs):
+    def forward(self, x, sigma, class_labels=None, D=128, force_fp32=False, **model_kwargs):
         x = x.to(torch.float32)
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1)
         class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim], device=x.device) if class_labels is None else class_labels.to(torch.float32).reshape(-1, self.label_dim)
@@ -735,37 +735,11 @@ class EDMPrecond(torch.nn.Module):
                 torch.float32).reshape(-1, self.label_dim)
             dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
-            # if self.small:
-            #     # ve type
-            #     c_skip = 1
-            #     c_out = sigma
-            #     c_in = 1
-            #     c_noise = (0.5 * sigma).log()
-            # else:
-            if sigma_old is not None:
-                # align preconditioning
-                sigma_old = sigma_old.to(torch.float32).reshape(-1, 1, 1, 1)
-                c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
-                c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
-                c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-                c_noise = sigma_old.log() / 4
-                k = sigma / sigma_old
-                #print(f"vanilla c skip:{c_skip}, c out:{c_out}")
 
-                c_3 = c_skip / c_out
-                a_3 = c_3 / k
-                a_out = 1 / (1/c_out-c_3+a_3)
-                a_skip = a_out * a_3
-
-                c_skip = a_skip
-                c_out = a_out
-
-                #print(f"c skip:{c_skip}, c out:{c_out}")
-            else:
-                c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
-                c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
-                c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-                c_noise = sigma.log() / 4
+            c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
+            c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
+            c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+            c_noise = sigma.log() / 4
 
             x_in = c_in * x
             #print("normalized norm:", x_in.view(len(x), -1).norm(p=2, dim=1).mean().item())
@@ -774,14 +748,6 @@ class EDMPrecond(torch.nn.Module):
             assert F_x.dtype == dtype
             D_x = c_skip * x + c_out * F_x.to(torch.float32)
             return D_x
-
-            # F_x_q = self.quan_dequan(F_x.float())
-            # x_q = self.quan_dequan(x.float())
-            # c_skip_q = self.quan_dequan(c_skip)
-            # c_out_q = self.quan_dequan(c_out)
-            # D_x = c_skip_q * x_q + c_out_q * F_x_q
-            # return D_x.float()
-
 
     def quan_dequan(self, input):
         input_q = torch.quantize_per_tensor(input.float(), 1 / 32., 0, dtype=torch.qint8)

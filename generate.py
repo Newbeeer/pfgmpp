@@ -137,22 +137,15 @@ def edm_sampler(
             t_hat = net.round_sigma(t_cur + gamma * t_cur)
             x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
             # Euler step.
-            if align_precond:
-                t_old = t_hat / np.sqrt(1 + N/D)
-                #print(t_old, t_hat)
-                denoised = net(x_hat, t_hat, class_labels, sigma_old=t_old).to(torch.float64)
-            else:
-                denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
+
+            denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
             d_cur = (x_hat - denoised) / t_hat
             x_next = x_hat + (t_next - t_hat) * d_cur
 
             # Apply 2nd order correction.
             if i < num_steps - 1:
-                if align_precond:
-                    t_old = t_next / np.sqrt(1 + N/D)
-                    denoised = net(x_next, t_next, class_labels, sigma_old=t_old).to(torch.float64)
-                else:
-                    denoised = net(x_next, t_next, class_labels).to(torch.float64)
+
+                denoised = net(x_next, t_next, class_labels).to(torch.float64)
                 d_prime = (x_next - denoised) / t_next
                 x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
     #print("mean final norm:", x_next.reshape((len(x_next), -1)).norm(p=2, dim=1).mean(), x_next.shape)
@@ -304,11 +297,14 @@ class StackedRandomGenerator:
                 r_max = 2500 / np.sqrt(N / (D - 2 - 1))
                 sample_norm = torch.sqrt(inverse_beta) * r_max
             elif kwargs['pfgmv2']:
-                #S_max = 200 if D==128 else 80
-                S_max = 80
+                if N < 256 * 256 * 3:
+                    sigma_max = 80
+                else:
+                    raise NotImplementedError
+
                 if kwargs['align']:
-                    S_max *= np.sqrt(1 + N/D)
-                sample_norm = torch.sqrt(inverse_beta) * S_max * np.sqrt(D)
+                    sigma_max *= np.sqrt(1 + N/D)
+                sample_norm = torch.sqrt(inverse_beta) * sigma_max * np.sqrt(D)
 
             gaussian = torch.randn(N).to(sample_norm.device)
             unit_gaussian = gaussian / torch.norm(gaussian, p=2)
@@ -450,8 +446,6 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                 continue
         if os.path.exists(temp_dir) and not save_images:
             continue
-
-
 
         # Loop over batches.
         dist.print0(f'Generating {len(seeds)} images to "{temp_dir}"...')

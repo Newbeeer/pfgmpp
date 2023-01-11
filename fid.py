@@ -121,8 +121,10 @@ def main():
 @click.option('--end_ckpt',                 help='begin ckpt', metavar='INT', type=int, default=1000000, show_default=True)
 @click.option('--batch',                help='Maximum batch size', metavar='INT',                   type=click.IntRange(min=1), default=64, show_default=True)
 @click.option('--gen_seed',                help='generate seeds', metavar='INT',                   type=click.IntRange(min=1), default=1, show_default=True)
+@click.option('--steps',          help='load varying steps', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--alpha',          help='load varying alpha', metavar='BOOL',              type=bool, default=False, show_default=True)
 
-def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_seed):
+def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_seed, steps, alpha):
     """Calculate FID for a given set of images."""
     torch.multiprocessing.set_start_method('spawn')
     dist.init()
@@ -133,10 +135,15 @@ def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_se
         with dnnlib.util.open_url(ref_path) as f:
             ref = dict(np.load(f))
 
-    print(gen_seed)
+    print("seed config:", gen_seed)
     if gen_seed == 1:
         # 0 ~ 49999
-        stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*"))
+        if steps:
+            stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*_steps_[0-9]*"))
+        elif alpha:
+            stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*_alpha_0.[0-9]*"))
+        else:
+            stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*"))
     elif gen_seed == 2:
         # 50000 ~ 99999
         stats = glob.glob(os.path.join(image_path, "ckpt_2_*"))
@@ -146,18 +153,20 @@ def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_se
     else:
         raise NotImplementedError
 
-    done_list = [192826, 112896, 125440]
+    done_list = []
     for path in stats:
-        #print(path)
-        ckpt_num = path[-6:]
-        #print("check num:", ckpt_num)
-        if ckpt_num[0] == '_':
-            continue
-            ckpt_num = ckpt_num[1:]
-        ckpt_num = int(ckpt_num)
-        #print(ckpt_num)
-        if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
-            continue
+        print("path:", path)
+
+        if not steps and not alpha:
+            ckpt_num = path[-6:]
+            if ckpt_num[0] == '_':
+                continue
+                ckpt_num = ckpt_num[1:]
+            ckpt_num = int(ckpt_num)
+            # print(ckpt_num)
+            if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
+                continue
+
         mu, sigma = calculate_inception_stats(image_path=path, num_expected=num_expected, seed=seed,
                                               max_batch_size=batch)
 

@@ -45,17 +45,47 @@ class VPLoss:
 
 @persistence.persistent_class
 class VELoss:
-    def __init__(self, sigma_min=0.02, sigma_max=100):
+    def __init__(self, sigma_min=0.02, sigma_max=100, D=128, N=3072, opts=None):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
+        self.D = D
+        self.N = N
+        print(f"In VE loss: D:{self.D}, N:{self.N}")
 
-    def __call__(self, net, images, labels, augment_pipe=None):
-        rnd_uniform = torch.rand([images.shape[0], 1, 1, 1], device=images.device)
-        sigma = self.sigma_min * ((self.sigma_max / self.sigma_min) ** rnd_uniform)
-        weight = 1 / sigma ** 2
-        y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
-        n = torch.randn_like(y) * sigma
-        D_yn = net(y + n, sigma, labels, augment_labels=augment_labels)
+    def __call__(self, net, images, labels, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, align_precond=False, ref_images=None):
+        if pfgmv2:
+            rnd_uniform = torch.rand(images.shape[0], device=images.device)
+            sigma = self.sigma_min * ((self.sigma_max / self.sigma_min) ** rnd_uniform)
+
+            r = sigma.double() * np.sqrt(self.D).astype(np.float64)
+            # Sampling form inverse-beta distribution
+            samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
+                                          size=images.shape[0]).astype(np.double)
+            inverse_beta = samples_norm / (1 - samples_norm + 1e-8)
+            inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
+            # Sampling from p_r(R) by change-of-variable
+            samples_norm = r * torch.sqrt(inverse_beta + 1e-8)
+            samples_norm = samples_norm.view(len(samples_norm), -1)
+            # Uniformly sample the angle direction
+            gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
+            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+            # Construct the perturbation for x
+            perturbation_x = unit_gaussian * samples_norm
+            perturbation_x = perturbation_x.float()
+
+            sigma = sigma.reshape((len(sigma), 1, 1, 1))
+            weight = 1 / sigma ** 2
+            y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
+            n = perturbation_x.view_as(y)
+            D_yn = net(y + n, sigma, labels,  D=self.D, augment_labels=augment_labels)
+        else:
+            rnd_uniform = torch.rand([images.shape[0], 1, 1, 1], device=images.device)
+            sigma = self.sigma_min * ((self.sigma_max / self.sigma_min) ** rnd_uniform)
+            weight = 1 / sigma ** 2
+            y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
+            n = torch.randn_like(y) * sigma
+            D_yn = net(y + n, sigma, labels, augment_labels=augment_labels)
+
         loss = weight * ((D_yn - y) ** 2)
         return loss
 
@@ -73,9 +103,12 @@ class EDMLoss:
         self.N = N
         self.gamma = gamma
         self.opts = opts
+        print(f"In EDM loss: D:{self.D}, N:{self.N}")
 
     def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, align_precond=False, ref_images=None):
         if pfgm:
+
+            # ===== obsolete ====== #
             r_min = 0.55 / np.sqrt(3072 / (self.D - 2 - 1))
             r_max = 2500 / np.sqrt(3072 / (self.D - 2 - 1))
 
@@ -147,30 +180,15 @@ class EDMLoss:
             perturbation_x = perturbation_x.float()
 
             sigma = sigma.reshape((len(sigma), 1, 1, 1))
-            sigma_old = sigma_old.reshape((len(sigma_old), 1, 1, 1))
 
-            if align_precond:
-                c_skip = self.sigma_data ** 2 / (sigma_old ** 2 + self.sigma_data ** 2)
-                c_out = sigma_old * self.sigma_data / (sigma_old ** 2 + self.sigma_data ** 2).sqrt()
-                k = sigma / sigma_old
-
-                c_3 = c_skip / c_out
-                a_3 = c_3 / k
-                a_out = 1 / (1 / c_out - c_3 + a_3)
-
-                weight = 1 / a_out ** 2
-                y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
-                n = perturbation_x.view_as(y)
-                D_yn = net(y + n, sigma, labels, sigma_old=sigma_old, D=self.D, augment_labels=augment_labels)
-            else:
-                weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
-                y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
-                n = perturbation_x.view_as(y)
-                D_yn = net(y + n, sigma, labels, sigma_old=None, D=self.D, augment_labels=augment_labels)
+            weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
+            y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
+            n = perturbation_x.view_as(y)
+            D_yn = net(y + n, sigma, labels, sigma_old=None, D=self.D, augment_labels=augment_labels)
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
-            #sigma = torch.ones_like(sigma) * 5
+            #sigma = torch.ones_like(sigma) * 80
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma
@@ -224,44 +242,50 @@ class EDMLoss:
             #print("stf weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
 
             gt_direction = torch.sum(weights * target, dim=1)
-            # perturbed_samples_vec = t7orch.cat((perturbed_samples_vec,
+            # perturbed_samples_vec = torch.cat((perturbed_samples_vec,
             #                                    torch.ones((len(perturbed_samples), 1)).to(perturbed_samples_vec.device) * sigmas.unsqueeze(1) * np.sqrt(self.D))
             #                                   , dim=1)
             #self.pfgm_target(perturbed_samples_vec, samples_full)
             D_list = [2 ** i for i in range(1, 23)]
-            #D_list.append(307200)
-            #D_list = [128, 256, 512, 1024, 2048]
-            #D_list = [3072000]
-            kl_list = []
-            power_list = []
-            #print(torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
             weight_diff = weights.squeeze().cpu().numpy()
             sigma_list = np.linspace(0, 1, 1000)
             sigma_list = 0.01 * (200 / 0.01) ** sigma_list
+            sigma_list = [80]
             tvd_collect = np.ones((len(D_list), len(sigma_list)))
+            norm_collect = np.ones((len(D_list), len(sigma_list)))
             for c, cur_sigma in enumerate(sigma_list):
                 for i, D in enumerate(D_list):
                     self.D = D
                     input_sigma = torch.ones_like(sigmas) * cur_sigma
-                    weights_pfgm = self.pfgmv2_target(input_sigma.squeeze() * np.sqrt(D), perturbed_samples, samples_full)
-                    # print(torch.sort(weights_pfgm.squeeze(), dim=1, descending=True)[0][:, 0])
+
+                    #perturbed_samples_new = self.pfgm_perturation(samples_full[: len(perturbed_samples)], input_sigma.squeeze() * np.sqrt(D))
+                    weights_pfgm = self.pfgmv2_target(input_sigma.squeeze() * np.sqrt(self.N+D), perturbed_samples, samples_full)
+                    #print("pfgm weights:", torch.sort(weights_pfgm.squeeze(), dim=1, descending=True)[0][:, 0])
+                    #print("diff weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
+
                     weights_pfgm = weights_pfgm.cpu().numpy()
+                    # tvd = 0.5 * abs(weights_pfgm -
+                    #                np.ones_like(weights_pfgm) / len(samples_full)).sum(1).mean()
 
-                    kl = 0.5 * abs(weights_pfgm -
-                                   np.ones_like(weights_pfgm) / len(samples_full)).sum(1).mean()
-                    # kl = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
-
+                    tvd = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
+                    #print(f"s:{cur_sigma}, D:{D}, tvd:{tvd}")
                     # kl = (weights_pfgm * np.log((weights_pfgm + 1e-5)/
                     #                                   (np.ones_like(weights_pfgm) / len(samples_full) + 1e-5))).sum(1).mean()
-                    # print("D:", D, "kl:", kl)
-                    # kl_list.append(kl)
-                    # power_list.append(i)
-                    tvd_collect[i, c] = kl
 
+                    # kl = (weights_pfgm * np.log((weights_pfgm + 1e-5)/
+                    #                                   (weight_diff + 1e-5))).sum(1).mean()
+                    tvd_collect[i, c] = tvd
 
-            #np.savez('tvd_prior', tvd=tvd_collect, power=power_list)
-            np.savez('tvd_prior_1_23_no_align', tvd=tvd_collect, sigma=sigma_list)
+                    # input_sigma = torch.ones((256)).to(samples_full.device) * cur_sigma
+                    # perturb = self.pfgm_perturation(samples_full[:256], input_sigma.squeeze() * np.sqrt(D))
+                    # mean_norm = torch.norm(perturb.view(len(perturb), -1), p=2, dim=1).mean().cpu().numpy()
+                    # print(f"s:{cur_sigma}, D:{D}, norm:{mean_norm}")
+                    #norm_collect[i, c] = mean_norm
+
+            np.savez('tvd_prior_s80_N_D', tvd=tvd_collect, power=np.log2(D_list))
+            #np.savez('tvd_prior_1_23_D', tvd=tvd_collect, sigma=sigma_list)
             #np.savez('kl_prior_1_23', tvd=tvd_collect, sigma=sigma_list)
+            #np.savez('norm_prior_1_23', norm=norm_collect, sigma=sigma_list)
             exit(0)
             return gt_direction
 
@@ -326,4 +350,23 @@ class EDMLoss:
 
         return gt_direction
         #return coeff.squeeze().float()
+
+    def pfgm_perturation(self, samples, r):
+
+        # Sampling form inverse-beta distribution
+        samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
+                                      size=samples.shape[0]).astype(np.double)
+        inverse_beta = samples_norm / (1 - samples_norm + 1e-8)
+        inverse_beta = torch.from_numpy(inverse_beta).to(samples.device).double()
+        # Sampling from p_r(R) by change-of-variable
+        samples_norm = r * torch.sqrt(inverse_beta + 1e-8)
+        samples_norm = samples_norm.view(len(samples_norm), -1)
+        # Uniformly sample the angle direction
+        gaussian = torch.randn(samples.shape[0], self.N).to(samples_norm.device)
+        unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+        # Construct the perturbation for x
+        perturbation_x = unit_gaussian * samples_norm
+        perturbation_x = perturbation_x.float()
+
+        return samples + perturbation_x.view_as(samples)
 #----------------------------------------------------------------------------
