@@ -186,6 +186,7 @@ class EDMLoss:
             n = perturbation_x.view_as(y)
             D_yn = net(y + n, sigma, labels, sigma_old=None, D=self.D, augment_labels=augment_labels)
         else:
+            print('check')
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
             #sigma = torch.ones_like(sigma) * 80

@@ -15,7 +15,7 @@ torchrun --standalone --nproc_per_node=8 train.py \
   --data=datasets/cifar10-32x32.zip --cond=0 --arch=ncsnpp \
   --pfgmv2=1 --batch 512 --align=0 --aug_dim 3072000
 # edm
-torchrun --standalone --nproc_per_node=8 train.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --standalone --nproc_per_node=8 train.py \
   --outdir=training-runs --name edm_ncsnpp \
   --data=datasets/cifar10-32x32.zip --cond=0 --arch=ncsnpp \
   --batch 512
