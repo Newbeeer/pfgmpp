@@ -1,26 +1,24 @@
-## Elucidating the Design Space of Diffusion-Based Generative Models (EDM)<br><sub>Official PyTorch implementation of the NeurIPS 2022 paper</sub>
+## Elucidating the Design Space of Diffusion-Based Generative Models (EDM)<br>
 
-![Teaser image](./docs/teaser-1920x640.jpg)
+# TODO List
 
-**Elucidating the Design Space of Diffusion-Based Generative Models**<br>
-Tero Karras, Miika Aittala, Timo Aila, Samuli Laine
-<br>https://arxiv.org/abs/2206.00364<br>
+| CIFAR-10 32x32      | Status  |      |
+| ------------------- | ------- | ---- |
+| D=128, arch=ddpmpp  |         |      |
+| D=2048, arch=ddpmpp |         |      |
+| D=64, arch=ddpmpp   |         |      |
+| **FFHQ 64x64**      |         |      |
+| D=128, arch=ddpmpp  | Ongoing |      |
+| D =512, arch=ddpmpp | Ongoing |      |
+| D=2048, arch=ddpmpp | Ongoing |      |
 
-Abstract: *We argue that the theory and practice of diffusion-based generative models are currently unnecessarily convoluted and seek to remedy the situation by presenting a design space that clearly separates the concrete design choices. This lets us identify several changes to both the sampling and training processes, as well as preconditioning of the score networks. Together, our improvements yield new state-of-the-art FID of 1.79 for CIFAR-10 in a class-conditional setting and 1.97 in an unconditional setting, with much faster sampling (35 network evaluations per image) than prior designs. To further demonstrate their modular nature, we show that our design changes dramatically improve both the efficiency and quality obtainable with pre-trained score networks from previous work, including improving the FID of a previously trained ImageNet-64 model from 2.07 to near-SOTA 1.55, and after re-training with our proposed improvements to a new SOTA of 1.36.*
 
-For business inquiries, please visit our website and submit the form: [NVIDIA Research Licensing](https://www.nvidia.com/en-us/research/inquiries/)
 
-## Requirements
 
-* Linux and Windows are supported, but we recommend Linux for performance and compatibility reasons.
-* 1+ high-end NVIDIA GPU for sampling and 8+ GPUs for training. We have done all testing and development using V100 and A100 GPUs.
-* 64-bit Python 3.8 and PyTorch 1.12.0 (or later). See https://pytorch.org for PyTorch install instructions.
-* Python libraries: See [environment.yml](./environment.yml) for exact library dependencies. You can use the following commands with Miniconda3 to create and activate your Python environment:
-  - `conda env create -f environment.yml -n edm`
-  - `conda activate edm`
-* Docker users:
-  - Ensure you have correctly installed the [NVIDIA container runtime](https://docs.docker.com/config/containers/resource_constraints/#gpu).
-  - Use the [provided Dockerfile](./Dockerfile) to build an image with the required library dependencies.
+
+
+
+
 
 ## Getting started
 

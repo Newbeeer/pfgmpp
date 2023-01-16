@@ -79,11 +79,11 @@ class Conv2d(torch.nn.Module):
         f_pad = (f.shape[-1] - 1) // 2 if f is not None else 0
 
         if self.fused_resample and self.up and w is not None:
-            # x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]), groups=self.in_channels, stride=2, padding=w_pad+f_pad)
-            # x = torch.nn.functional.conv2d(x, w)
-            x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]),
-                                                     groups=self.in_channels, stride=2, padding=max(f_pad - w_pad, 0))
-            x = torch.nn.functional.conv2d(x, w, padding=max(w_pad - f_pad, 0))
+            x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]), groups=self.in_channels, stride=2, padding=w_pad+f_pad)
+            x = torch.nn.functional.conv2d(x, w)
+            # x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]),
+            #                                          groups=self.in_channels, stride=2, padding=max(f_pad - w_pad, 0))
+            # x = torch.nn.functional.conv2d(x, w, padding=max(w_pad - f_pad, 0))
         elif self.fused_resample and self.down and w is not None:
             x = torch.nn.functional.conv2d(x, w, padding=w_pad+f_pad)
             x = torch.nn.functional.conv2d(x, f.tile([self.out_channels, 1, 1, 1]), groups=self.out_channels, stride=2)
@@ -199,16 +199,11 @@ class UNetBlock(torch.nn.Module):
         x = x * self.skip_scale
 
         if self.num_heads:
-            #print("x shape:", x.shape, self.norm2(x).shape, self.num_heads)
             q, k, v = self.qkv(self.norm2(x)).reshape(x.shape[0] * self.num_heads, x.shape[1] // self.num_heads, 3, -1).unbind(2)
             w = AttentionOp.apply(q, k)
             a = torch.einsum('nqk,nck->ncq', w, v)
             x = self.proj(a.reshape(*x.shape)).add_(x)
             x = x * self.skip_scale
-        # print("before:", x[0])
-        # x = torch.quantize_per_tensor(x.float(), 1 / 64., 0, dtype=torch.qint8)
-        # x = x.dequantize()
-        # print("after:", x[0])
 
         return x
 

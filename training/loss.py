@@ -199,7 +199,6 @@ class EDMLoss:
                 if augment_pipe is not None else (images, None)
             # update augmented original images
             ref_images[:len(y)] = y
-
         if pfgm:
             target = self.pfgm_target(perturbed_samples_vec, ref_images)
             target = target.view_as(D_yn)
