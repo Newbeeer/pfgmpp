@@ -404,45 +404,70 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     done_list = []
 
-    step_list = [10, 12, 14, 16, 18, 20, 22, 24]
-    #step_list = [20, 22, 24, 26, 28, 30]
-    for ckpt_dir in stats:
-        # Load network.
-        dist.print0(f'Loading network from "{ckpt_dir}"...')
-        # Rank 0 goes first.
-        if dist.get_rank() != 0:
-            torch.distributed.barrier()
-        # with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
-        #     net = pickle.load(f)['ema'].to(device)
+    alpha_list = [0.4, 0.5]
 
-        if edm:
-            with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
-                net = pickle.load(f)['ema'].to(device)
-            ckpt_num = 0
-        else:
-            ckpt_num = int(ckpt_dir[-9:-3])
-            data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
-            net = data['ema'].to(device)
-            assert net.D == aug_dim
+    #alpha_list = [0.2]
 
-        # Other ranks follow.
-        if dist.get_rank() == 0:
-            torch.distributed.barrier()
+    for alpha in alpha_list:
+        torch.distributed.barrier()
+        alpha = 1-alpha
+        for ckpt_dir in stats:
+            # Load network.
+            dist.print0(f'Loading network from "{ckpt_dir}"...')
+            # Rank 0 goes first.
+            if dist.get_rank() != 0:
+                torch.distributed.barrier()
+            # with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
+            #     net = pickle.load(f)['ema'].to(device)
 
-        for steps in step_list:
+            if edm:
+                with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
+                    net = pickle.load(f)['ema'].to(device)
+                ckpt_num = 0
+            else:
+                ckpt_num = int(ckpt_dir[-9:-3])
+                data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
+                net = data['ema'].to(device)
+                assert net.D == aug_dim
+
+            # Other ranks follow.
+            if dist.get_rank() == 0:
+                torch.distributed.barrier()
+
+            def prune(model):
+                for name, param in model.named_parameters():
+                    # if 'conv' in name and 'weight' in name and not ('32' in name):
+                    if 'weight' in name and not 'norm' in name and not 'affine' in name and not 'map' in name and not '32' in name:
+                        #print(name)
+                        # === pruning === #
+                        w = param
+                        ori_shaoe = w.data.shape
+                        w_reshape = w.data.flatten()
+                        w_length = len(w_reshape)
+                        keep_len = int(alpha * w_length)
+                        sorted, indices = torch.sort(abs(w_reshape), descending=True)
+                        w_reshape[indices[keep_len:]] = 0
+                        w.data = w_reshape.reshape(ori_shaoe)
+                        # print("new:", w.data.shape)
+                        # === pruning === #
+                        # print(name, param.data.shape)
+                return model
+
+            net = prune(net)
+            net = net.cuda()
 
             if seeds[-1] > 49999 and seeds[-1] <= 99999:
-                temp_dir = os.path.join(outdir, f'ckpt_2_{ckpt_num:06d}_steps_{steps}')
+                temp_dir = os.path.join(outdir, f'ckpt_2_{ckpt_num:06d}_prune_{alpha}')
             elif seeds[-1] > 99999:
-                temp_dir = os.path.join(outdir, f'ckpt_3_{ckpt_num:06d}_steps_{steps}')
+                temp_dir = os.path.join(outdir, f'ckpt_3_{ckpt_num:06d}_prune_{alpha}')
             else:
-                temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}_steps_{steps}')
+                temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}_prune_{alpha}')
 
             if not edm:
                 if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
                     continue
-            if os.path.exists(temp_dir) and not save_images:
-                continue
+            # if os.path.exists(temp_dir) and not save_images:
+            #     continue
 
             # Loop over batches.
             dist.print0(f'Generating {len(seeds)} images to "{temp_dir}"...')
@@ -477,13 +502,12 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
 
                 # Generate images.
                 sampler_kwargs = {key: value for key, value in sampler_kwargs.items() if value is not None}
-                sampler_kwargs['num_steps'] = steps
                 have_ablation_kwargs = any(
                     x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
                 sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
-                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
-                                    pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align,  **sampler_kwargs)
-
+                with torch.no_grad():
+                    images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
+                                        pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, alpha=0, **sampler_kwargs)
                 # Save images.
                 images_np = (images * 127.5 + 128).clip(0, 255).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
 

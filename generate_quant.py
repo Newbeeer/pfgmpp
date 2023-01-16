@@ -22,6 +22,7 @@ from torchvision.utils import make_grid, save_image
 from torch.distributions import Beta
 import glob
 from torch_utils import misc
+from collections import namedtuple
 #----------------------------------------------------------------------------
 # Proposed EDM sampler (Algorithm 2).
 
@@ -404,45 +405,88 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     done_list = []
 
-    step_list = [10, 12, 14, 16, 18, 20, 22, 24]
-    #step_list = [20, 22, 24, 26, 28, 30]
-    for ckpt_dir in stats:
-        # Load network.
-        dist.print0(f'Loading network from "{ckpt_dir}"...')
-        # Rank 0 goes first.
-        if dist.get_rank() != 0:
-            torch.distributed.barrier()
-        # with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
-        #     net = pickle.load(f)['ema'].to(device)
+    bits_list = [5, 6]
+    #bits_list = [14]
+    QTensor = namedtuple('QTensor', ['tensor', 'scale', 'zero_point'])
+    def quantize_tensor(x, num_bits=8):
+        qmin = 0.
+        qmax = 2. ** num_bits - 1.
+        min_val, max_val = x.min(), x.max()
 
-        if edm:
-            with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
-                net = pickle.load(f)['ema'].to(device)
-            ckpt_num = 0
+        scale = (max_val - min_val) / (qmax - qmin)
+
+        initial_zero_point = qmin - min_val / scale
+
+        zero_point = 0
+        if initial_zero_point < qmin:
+            zero_point = qmin
+        elif initial_zero_point > qmax:
+            zero_point = qmax
         else:
-            ckpt_num = int(ckpt_dir[-9:-3])
-            data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
-            net = data['ema'].to(device)
-            assert net.D == aug_dim
+            zero_point = initial_zero_point
 
-        # Other ranks follow.
-        if dist.get_rank() == 0:
-            torch.distributed.barrier()
+        zero_point = int(zero_point)
+        q_x = zero_point + x / scale
+        q_x.clamp_(qmin, qmax).round_()
+        #print("before:", q_x.round().flatten())
+        q_x = q_x.round()
+        #print("after:", q_x.flatten())
+        return QTensor(tensor=q_x, scale=scale, zero_point=zero_point)
 
-        for steps in step_list:
+    def dequantize_tensor(q_x):
+        return q_x.scale * (q_x.tensor.float() - q_x.zero_point)
+
+    def quant_weight(model, num_bits=8):
+        for name, param in model.named_parameters():
+            if 'weight' in name and not 'norm' in name and not 'affine' in name and not 'map' in name and not '32' in name:
+                # === quantization === #
+                #print("before:", param.data.flatten())
+                Q_quant = quantize_tensor(param.data, num_bits=num_bits)
+                param.data = dequantize_tensor(Q_quant)
+                #print("after: ", param.data.flatten())
+        return model
+
+
+    for bit in bits_list:
+        torch.distributed.barrier()
+        for ckpt_dir in stats:
+            # Load network.
+            dist.print0(f'Loading network from "{ckpt_dir}"...')
+            # Rank 0 goes first.
+            if dist.get_rank() != 0:
+                torch.distributed.barrier()
+            # with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
+            #     net = pickle.load(f)['ema'].to(device)
+
+            if edm:
+                with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
+                    net = pickle.load(f)['ema'].to(device)
+                ckpt_num = 0
+            else:
+                ckpt_num = int(ckpt_dir[-9:-3])
+                data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
+                net = data['ema'].to(device)
+                #print("net D:", net.D)
+                assert net.D == aug_dim
+
+            # Other ranks follow.
+            if dist.get_rank() == 0:
+                torch.distributed.barrier()
+            net = quant_weight(net, num_bits=bit)
+            net = net.cuda()
 
             if seeds[-1] > 49999 and seeds[-1] <= 99999:
-                temp_dir = os.path.join(outdir, f'ckpt_2_{ckpt_num:06d}_steps_{steps}')
+                temp_dir = os.path.join(outdir, f'ckpt_2_{ckpt_num:06d}_quant_{bit}')
             elif seeds[-1] > 99999:
-                temp_dir = os.path.join(outdir, f'ckpt_3_{ckpt_num:06d}_steps_{steps}')
+                temp_dir = os.path.join(outdir, f'ckpt_3_{ckpt_num:06d}_quant_{bit}')
             else:
-                temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}_steps_{steps}')
+                temp_dir = os.path.join(outdir, f'ckpt_{ckpt_num:06d}_quant_{bit}')
 
             if not edm:
                 if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
                     continue
-            if os.path.exists(temp_dir) and not save_images:
-                continue
+            # if os.path.exists(temp_dir) and not save_images:
+            #     continue
 
             # Loop over batches.
             dist.print0(f'Generating {len(seeds)} images to "{temp_dir}"...')
@@ -477,14 +521,21 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
 
                 # Generate images.
                 sampler_kwargs = {key: value for key, value in sampler_kwargs.items() if value is not None}
-                sampler_kwargs['num_steps'] = steps
                 have_ablation_kwargs = any(
                     x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
                 sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
-                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
-                                    pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align,  **sampler_kwargs)
-
+                with torch.no_grad():
+                    images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
+                                        pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, alpha=0, **sampler_kwargs)
                 # Save images.
+                if save_images:
+                    # save a small batch of images
+                    images_ = (images + 1) / 2.
+                    print("len:", len(images))
+                    image_grid = make_grid(images_, nrow=int(np.sqrt(len(images))))
+                    save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}_quant_{bit}.png'))
+
+                    continue
                 images_np = (images * 127.5 + 128).clip(0, 255).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
 
                 for seed, image_np in zip(batch_seeds, images_np):

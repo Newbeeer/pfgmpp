@@ -394,6 +394,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
 
+
     if not edm:
         stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
     else:
@@ -406,6 +407,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         # Rank 0 goes first.
         if dist.get_rank() != 0:
             torch.distributed.barrier()
+
         # with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
         #     net = pickle.load(f)['ema'].to(device)
 
@@ -416,17 +418,6 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         else:
             ckpt_num = int(ckpt_dir[-9:-3])
             data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
-            # print(data.keys())
-            # interface_kwargs = dict(img_resolution=32, img_channels=3,
-            #                         label_dim=0, pfgm=False, pfgmv2=True)
-            # network_kwargs = dnnlib.EasyDict()
-            # network_kwargs.update(model_type='SongUNet', embedding_type='fourier', encoder_type='residual', decoder_type='standard')
-            # network_kwargs.update(channel_mult_noise=2, resample_filter=[1,3,3,1], model_channels=128, channel_mult=[2,2,2])
-            # network_kwargs.class_name = 'training.networks.EDMPrecond'
-            # network_kwargs.augment_dim = 9
-            # net = dnnlib.util.construct_class_by_name(**network_kwargs, **interface_kwargs)
-            # misc.copy_params_and_buffers(src_module=data['ema'], dst_module=net, require_all=False)
-            # net = net.cuda()
             net = data['ema'].to(device)
             assert net.D == aug_dim
 
@@ -481,8 +472,10 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             sampler_kwargs = {key: value for key, value in sampler_kwargs.items() if value is not None}
             have_ablation_kwargs = any(x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
             sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
-            images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
+            with torch.no_grad():
+                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
                                 pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, **sampler_kwargs)
+
             if save_images:
                 # save a small batch of images
                 images_ = (images + 1) / 2.

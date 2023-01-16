@@ -78,16 +78,12 @@ class Conv2d(torch.nn.Module):
         w_pad = w.shape[-1] // 2 if w is not None else 0
         f_pad = (f.shape[-1] - 1) // 2 if f is not None else 0
 
-        #x = self.quan_dequan(x, cal=False)
-        # if w is not None:
-        #     w = self.quan_dequan(w)
-
         if self.fused_resample and self.up and w is not None:
-            x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]), groups=self.in_channels, stride=2, padding=w_pad+f_pad)
-            x = torch.nn.functional.conv2d(x, w)
-            # x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]),
-            #                                          groups=self.in_channels, stride=2, padding=max(f_pad - w_pad, 0))
-            # x = torch.nn.functional.conv2d(x, w, padding=max(w_pad - f_pad, 0))
+            # x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]), groups=self.in_channels, stride=2, padding=w_pad+f_pad)
+            # x = torch.nn.functional.conv2d(x, w)
+            x = torch.nn.functional.conv_transpose2d(x, f.mul(4).tile([self.in_channels, 1, 1, 1]),
+                                                     groups=self.in_channels, stride=2, padding=max(f_pad - w_pad, 0))
+            x = torch.nn.functional.conv2d(x, w, padding=max(w_pad - f_pad, 0))
         elif self.fused_resample and self.down and w is not None:
             x = torch.nn.functional.conv2d(x, w, padding=w_pad+f_pad)
             x = torch.nn.functional.conv2d(x, f.tile([self.out_channels, 1, 1, 1]), groups=self.out_channels, stride=2)
@@ -575,6 +571,9 @@ class VEPrecond(torch.nn.Module):
         sigma_min       = 0.02,         # Minimum supported noise level.
         sigma_max       = 100,          # Maximum supported noise level.
         model_type      = 'SongUNet',   # Class name of the underlying model.
+        pfgm=False,
+        pfgmv2=False,
+        D=128,
         **model_kwargs,                 # Keyword arguments for the underlying model.
     ):
         super().__init__()
@@ -585,6 +584,7 @@ class VEPrecond(torch.nn.Module):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.model = globals()[model_type](img_resolution=img_resolution, in_channels=img_channels, out_channels=img_channels, label_dim=label_dim, **model_kwargs)
+        print('VE precond')
 
     def forward(self, x, sigma, class_labels=None, D=128, force_fp32=False, **model_kwargs):
         x = x.to(torch.float32)
@@ -597,7 +597,9 @@ class VEPrecond(torch.nn.Module):
         c_in = 1
         c_noise = (0.5 * sigma).log()
 
-        F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
+        x_in = c_in * x
+        #print("normalized norm:", x_in.view(len(x), -1).norm(p=2, dim=1).mean().item())
+        F_x = self.model((x_in).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
         assert F_x.dtype == dtype
         D_x = c_skip * x + c_out * F_x.to(torch.float32)
         return D_x

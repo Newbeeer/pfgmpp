@@ -123,8 +123,10 @@ def main():
 @click.option('--gen_seed',                help='generate seeds', metavar='INT',                   type=click.IntRange(min=1), default=1, show_default=True)
 @click.option('--steps',          help='load varying steps', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--alpha',          help='load varying alpha', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--prune',          help='load varying alpha', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--quant',          help='load varying alpha', metavar='BOOL',              type=bool, default=False, show_default=True)
 
-def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_seed, steps, alpha):
+def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_seed, steps, alpha, prune, quant):
     """Calculate FID for a given set of images."""
     torch.multiprocessing.set_start_method('spawn')
     dist.init()
@@ -142,11 +144,20 @@ def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_se
             stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*_steps_[0-9]*"))
         elif alpha:
             stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*_alpha_0.[0-9]*"))
+        elif prune:
+            stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*_prune_0.[0-9]*"))
+        elif quant:
+            stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*_quant_[0-9]*"))
         else:
             stats = glob.glob(os.path.join(image_path, "ckpt_[0-9]*"))
     elif gen_seed == 2:
         # 50000 ~ 99999
-        stats = glob.glob(os.path.join(image_path, "ckpt_2_*"))
+        if prune:
+            stats = glob.glob(os.path.join(image_path, "ckpt_2_[0-9]*_prune_0.[0-9]*"))
+        elif quant:
+            stats = glob.glob(os.path.join(image_path, "ckpt_2_[0-9]*_quant_[0-9]*"))
+        else:
+            stats = glob.glob(os.path.join(image_path, "ckpt_2_*"))
     elif gen_seed == 3:
         # 100000 ~ 149999
         stats = glob.glob(os.path.join(image_path, "ckpt_3_*"))
@@ -157,7 +168,7 @@ def calc(image_path, ref_path, num_expected, seed, ckpt, end_ckpt, batch, gen_se
     for path in stats:
         print("path:", path)
 
-        if not steps and not alpha:
+        if not steps and not alpha and not prune and not quant:
             ckpt_num = path[-6:]
             if ckpt_num[0] == '_':
                 continue

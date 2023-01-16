@@ -404,8 +404,9 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     done_list = []
 
-    alpha_list = [i/20. for i in range(10)]
+    alpha_list = [i/20. for i in range(1, 10)]
 
+    alpha_list = [0, 0.1, 0.2]
     for ckpt_dir in stats:
         # Load network.
         dist.print0(f'Loading network from "{ckpt_dir}"...')
@@ -482,7 +483,15 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                 sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
                 images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
                                     pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, alpha=alpha, **sampler_kwargs)
-                # Save images.
+                # Save images
+                if save_images:
+                    # save a small batch of images
+                    images_ = (images + 1) / 2.
+                    print("len:", len(images))
+                    image_grid = make_grid(images_, nrow=int(np.sqrt(len(images))))
+                    save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}_{alpha}.png'))
+                    continue
+
                 images_np = (images * 127.5 + 128).clip(0, 255).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
 
                 for seed, image_np in zip(batch_seeds, images_np):
