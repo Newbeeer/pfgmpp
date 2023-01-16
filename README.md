@@ -2,8 +2,9 @@
 
 # TODO List
 
-| CIFAR-10 32x32      | Status  | Results |
+|                     | Status  | Results |
 | ------------------- | ------- | ------- |
+| **CIFAR-10 32x32**  |         |         |
 | D=128, arch=ddpmpp  |         |         |
 | D=2048, arch=ddpmpp |         |         |
 | D=64, arch=ddpmpp   |         |         |
