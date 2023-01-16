@@ -48,3 +48,12 @@ torchrun --standalone --nproc_per_node=8 fid.py calc --images=training-runs/8192
 torchrun --standalone --nproc_per_node=8 fid.py calc --images=training-runs/3072000_stf_0_align_0 --ref=fid-refs/cifar10-32x32.npz --num 50000 --ckpt 100000 --gen_seed 1 > res_3072000_8GPU.txt
 # edm
 torchrun --standalone --nproc_per_node=8 fid.py calc --images=training-runs/edm_ncsnpp --ref=fid-refs/cifar10-32x32.npz --num 50000 --ckpt 100000 --gen_seed 1 > res_edm.txt
+
+
+# ================ Train FFHQ ================
+# 2048
+torchrun --standalone --nproc_per_node=8 train.py \
+  --outdir=training-runs --name ffhq_512_stf_0_align_0 \
+  --data=datasets/ffhq-64x64.zip --cond=0 --arch=ddpmpp \
+  --pfgmv2=1 --batch 256 --align=0 --aug_dim 512 \
+  --cres=1,2,2,2 --lr=2e-4 --dropout=0.05 --augment=0.15
