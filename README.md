@@ -2,15 +2,15 @@
 
 # TODO List
 
-| CIFAR-10 32x32      | Status  |      |
-| ------------------- | ------- | ---- |
-| D=128, arch=ddpmpp  |         |      |
-| D=2048, arch=ddpmpp |         |      |
-| D=64, arch=ddpmpp   |         |      |
-| **FFHQ 64x64**      |         |      |
-| D=128, arch=ddpmpp  | Ongoing |      |
-| D =512, arch=ddpmpp | Ongoing |      |
-| D=2048, arch=ddpmpp | Ongoing |      |
+| CIFAR-10 32x32      | Status  | Results |
+| ------------------- | ------- | ------- |
+| D=128, arch=ddpmpp  |         |         |
+| D=2048, arch=ddpmpp |         |         |
+| D=64, arch=ddpmpp   |         |         |
+| **FFHQ 64x64**      |         |         |
+| D=128, arch=ddpmpp  | Ongoing |         |
+| D =512, arch=ddpmpp | Ongoing |         |
+| D=2048, arch=ddpmpp | Ongoing |         |
 
 
 
