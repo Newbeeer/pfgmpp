@@ -216,7 +216,8 @@ def training_loop(
             dist.print0('Aborting...')
 
         # Save network snapshot.
-        if (state_dump_ticks is not None) and (done or cur_tick % state_dump_ticks == 0) and cur_tick != 0 and dist.get_rank() == 0:
+        if (state_dump_ticks is not None) and (done or cur_tick % state_dump_ticks == 0) and cur_tick != 0:
+        #if True:
             #data = dict(ema=ema, loss_fn=loss_fn, augment_pipe=augment_pipe, dataset_kwargs=dict(dataset_kwargs))
             data = dict(optimizer_state=optimizer.state_dict(), step=cur_nimg, ema=ema, net=net)
             for key, value in data.items():
@@ -229,7 +230,6 @@ def training_loop(
                 with open(os.path.join(run_dir, f'training-state-{cur_nimg//1000:06d}.pkl'), 'wb') as f:
                     pickle.dump(data, f)
             del data # conserve memory
-
 
         # # Save full dump of the training state.
         # if (state_dump_ticks is not None) and (done or cur_tick % state_dump_ticks == 0) and cur_tick != 0 and dist.get_rank() == 0:
