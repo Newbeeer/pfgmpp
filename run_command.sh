@@ -51,9 +51,13 @@ torchrun --standalone --nproc_per_node=8 fid.py calc --images=training-runs/edm_
 
 
 # ================ Train FFHQ ================
-# 2048
+# 128
 torchrun --standalone --nproc_per_node=8 train.py \
-  --outdir=training-runs --name ffhq_512_stf_0_align_0 \
+  --outdir=training-runs --name ffhq_128_stf_0_align_0 \
   --data=datasets/ffhq-64x64.zip --cond=0 --arch=ddpmpp \
-  --pfgmv2=1 --batch 256 --align=0 --aug_dim 512 \
+  --pfgmv2=1 --batch 256 --align=0 --aug_dim 128 \
   --cres=1,2,2,2 --lr=2e-4 --dropout=0.05 --augment=0.15
+# generate
+torchrun --standalone --nproc_per_node=8 generate.py \
+  --seeds=0-49999 --outdir=./training-runs/ffhq_128_stf_0_align_0 \
+  --ckpt 150000 --pfgmv2=1 --align=0 --aug_dim=128 --steps=40
