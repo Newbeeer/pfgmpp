@@ -698,12 +698,6 @@ class EDMPrecond(torch.nn.Module):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
-        # no use #
-        self.moment_half = sc.beta(self.N/2. + 0.5, D/2. - 0.5) / sc.beta(self.N/2., D/2.)
-        self.moment_one = sc.beta(self.N/2. + 1, D/2. - 1) / sc.beta(self.N/2., D/2.)
-        if self.moment_one is None:
-            self.moment_one = self.N / (self.D-1)
-        self.std_half = np.sqrt(self.moment_one - self.moment_half ** 2)
         ###########
         self.model = globals()[model_type](img_resolution=img_resolution, in_channels=img_channels,
                                            out_channels=img_channels, pfgm=pfgm, label_dim=label_dim, **model_kwargs)

@@ -188,7 +188,7 @@ class EDMLoss:
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
-            #sigma = torch.ones_like(sigma) * 80
+            #sigma = torch.ones_like(sigma) * 20
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma
@@ -248,43 +248,48 @@ class EDMLoss:
             D_list = [2 ** i for i in range(1, 23)]
             weight_diff = weights.squeeze().cpu().numpy()
             sigma_list = np.linspace(0, 1, 1000)
-            sigma_list = 0.01 * (200 / 0.01) ** sigma_list
-            sigma_list = [80]
+            # sigma_list = 0.01 * (200 / 0.01) ** sigma_list
+            sigma_list = [1, 10, 20, 40, 80]
             tvd_collect = np.ones((len(D_list), len(sigma_list)))
-            norm_collect = np.ones((len(D_list), len(sigma_list)))
+            norm_collect = np.ones((len(D_list), len(sigma_list), 1024))
+            distance_collect = np.ones((len(D_list), len(sigma_list)))
             for c, cur_sigma in enumerate(sigma_list):
                 for i, D in enumerate(D_list):
                     self.D = D
                     input_sigma = torch.ones_like(sigmas) * cur_sigma
 
                     #perturbed_samples_new = self.pfgm_perturation(samples_full[: len(perturbed_samples)], input_sigma.squeeze() * np.sqrt(D))
-                    weights_pfgm = self.pfgmv2_target(input_sigma.squeeze() * np.sqrt(self.N+D), perturbed_samples, samples_full)
+                    #gt_pfgm = self.pfgmv2_target(input_sigma.squeeze() * np.sqrt(D), perturbed_samples, samples_full)
                     #print("pfgm weights:", torch.sort(weights_pfgm.squeeze(), dim=1, descending=True)[0][:, 0])
                     #print("diff weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
 
-                    weights_pfgm = weights_pfgm.cpu().numpy()
+                    #weights_pfgm = weights_pfgm.cpu().numpy()
                     # tvd = 0.5 * abs(weights_pfgm -
                     #                np.ones_like(weights_pfgm) / len(samples_full)).sum(1).mean()
-
-                    tvd = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
+                    #tvd = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
                     #print(f"s:{cur_sigma}, D:{D}, tvd:{tvd}")
                     # kl = (weights_pfgm * np.log((weights_pfgm + 1e-5)/
                     #                                   (np.ones_like(weights_pfgm) / len(samples_full) + 1e-5))).sum(1).mean()
 
                     # kl = (weights_pfgm * np.log((weights_pfgm + 1e-5)/
                     #                                   (weight_diff + 1e-5))).sum(1).mean()
-                    tvd_collect[i, c] = tvd
+                    #tvd_collect[i, c] = tvd
 
-                    # input_sigma = torch.ones((256)).to(samples_full.device) * cur_sigma
-                    # perturb = self.pfgm_perturation(samples_full[:256], input_sigma.squeeze() * np.sqrt(D))
+                    input_sigma = torch.ones((1024)).to(samples_full.device) * cur_sigma
+                    perturb = self.pfgm_perturation(samples_full[:1024], input_sigma.squeeze() * np.sqrt(D))
                     # mean_norm = torch.norm(perturb.view(len(perturb), -1), p=2, dim=1).mean().cpu().numpy()
+                    norm = torch.norm(perturb.view(len(perturb), -1), p=2, dim=1).cpu().numpy()
                     # print(f"s:{cur_sigma}, D:{D}, norm:{mean_norm}")
-                    #norm_collect[i, c] = mean_norm
+                    norm_collect[i, c] = norm
 
-            np.savez('tvd_prior_s80_N_D', tvd=tvd_collect, power=np.log2(D_list))
+                    #avg_dis = (gt_direction - gt_pfgm).norm(p=2, dim=1).mean()
+                    #distance_collect[i, c] = avg_dis.detach().cpu().numpy()
+
+            #np.savez('dis_20', dis=distance_collect, power=np.log2(D_list))
+            #np.savez('tvd_prior_s80_N_D', tvd=tvd_collect, power=np.log2(D_list))
             #np.savez('tvd_prior_1_23_D', tvd=tvd_collect, sigma=sigma_list)
             #np.savez('kl_prior_1_23', tvd=tvd_collect, sigma=sigma_list)
-            #np.savez('norm_prior_1_23', norm=norm_collect, sigma=sigma_list)
+            np.savez('norm', norm=norm_collect, sigma=sigma_list)
             exit(0)
             return gt_direction
 
