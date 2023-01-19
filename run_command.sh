@@ -61,3 +61,5 @@ torchrun --standalone --nproc_per_node=8 train.py \
 torchrun --standalone --nproc_per_node=8 generate.py \
   --seeds=0-49999 --outdir=./training-runs/ffhq_128_stf_0_align_0 \
   --ckpt 150000 --pfgmv2=1 --align=0 --aug_dim=128 --steps=40
+# fid evaluation
+torchrun --standalone --nproc_per_node=8 fid.py calc --images=training-runs/ffhq_128_stf_0_align_0 --ref=fid-refs/ffhq-64x64.npz --num 50000 --ckpt 150000 --gen_seed 1 > res_ffhq_ddpmpp_128.txt
