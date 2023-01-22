@@ -11,8 +11,8 @@
 | D=3072000, arch=ddpmpp |         |                                                                              |
 | **FFHQ 64x64**         |         |                                                                              |
 | D=128, arch=ddpmpp     | Ongoing | [link](https://www.dropbox.com/s/9uyqu4hj6lefrzo/res_ffhq_ddpmpp_128.txt?dl=0)|
-| D =512, arch=ddpmpp    | Ongoing |                                                                              |
-| D=2048, arch=ddpmpp    | Ongoing |                                                                              |
+| D =512, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/3rxz8cg4t14cfdd/res_ffhq_ddpmpp_512.txt?dl=0)|
+| D=2048, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/lxughy04zytu3xs/res_ffhq_ddpmpp_2048.txt?dl=0)|
 
 
 
