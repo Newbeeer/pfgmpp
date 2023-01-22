@@ -366,7 +366,7 @@ def parse_int_list(s):
 @click.option('--schedule',                help='Ablate noise schedule sigma(t)', metavar='vp|ve|linear',           type=click.Choice(['vp', 've', 'linear']))
 @click.option('--scaling',                 help='Ablate signal scaling s(t)', metavar='vp|none',                    type=click.Choice(['vp', 'none']))
 @click.option('--edm',          help='load edm model', metavar='BOOL',              type=bool, default=False, show_default=True)
-@click.option('--pickle',          help='load model by pickle', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--use_pickle',          help='load model by pickle', metavar='BOOL',              type=bool, default=False, show_default=True)
 
 @click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
@@ -374,7 +374,7 @@ def parse_int_list(s):
 @click.option('--align_precond',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
 
-def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, edm, pickle, device=torch.device('cuda'), **sampler_kwargs):
+def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, edm, use_pickle, device=torch.device('cuda'), **sampler_kwargs):
     """Generate random images using the techniques described in the paper
     "Elucidating the Design Space of Diffusion-Based Generative Models".
 
@@ -397,7 +397,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
 
 
     if not edm:
-        if pickle:
+        if use_pickle:
             stats = glob.glob(os.path.join(outdir, "training-state-*.pkl"))
         else:
             stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
@@ -420,14 +420,15 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                 net = pickle.load(f)['ema'].to(device)
             ckpt_num = 0
         else:
-            if pickle:
+            if use_pickle:
                 with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
                     net = pickle.load(f)['ema'].to(device)
+                    ckpt_num = int(ckpt_dir[-10:-4])
             else:
                 data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
                 net = data['ema'].eval().to(device)
+                ckpt_num = int(ckpt_dir[-9:-3])
 
-            ckpt_num = int(ckpt_dir[-9:-3])
             assert net.D == aug_dim
 
         if seeds[-1] > 49999 and seeds[-1] <= 99999:
