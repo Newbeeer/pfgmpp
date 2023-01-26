@@ -13,10 +13,9 @@
 | D=128, arch=ddpmpp     | Ongoing | [link](https://www.dropbox.com/s/9uyqu4hj6lefrzo/res_ffhq_ddpmpp_128.txt?dl=0)|
 | D =512, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/3rxz8cg4t14cfdd/res_ffhq_ddpmpp_512.txt?dl=0)|
 | D=2048, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/lxughy04zytu3xs/res_ffhq_ddpmpp_2048.txt?dl=0)|
-
-
-
-
+| D=8192, arch=ddpmpp       | Ongoing | [link](https://www.dropbox.com/s/9y24nc2y5b4wmmh/res_ffhq_ddpmpp_8192.txt?dl=0)|
+| D=3072000, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/mn7on8c4iup6hi1/res_ffhq_ddpmpp_3072000.txt?dl=0)|
+| edm, arch=ddpmpp          | Ongoing | [link](https://www.dropbox.com/s/dgyoh120v0dj8wy/res_ffhq_edm_ddpmpp.txt?dl=0)|
 
 
 
