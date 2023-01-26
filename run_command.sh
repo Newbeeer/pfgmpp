@@ -63,3 +63,6 @@ torchrun --standalone --nproc_per_node=8 generate.py \
   --ckpt 150000 --pfgmv2=1 --align=0 --aug_dim=128 --steps=40
 # fid evaluation
 torchrun --standalone --nproc_per_node=8 fid.py calc --images=training-runs/ffhq_128_stf_0_align_0 --ref=fid-refs/ffhq-64x64.npz --num 50000 --ckpt 150000 --gen_seed 1 > res_ffhq_ddpmpp_128.txt
+
+# train edm model in the edm_pfgm code base
+torchrun --standalone --nproc_per_node=8 train.py   --outdir=training-runs --name ffhq_edm_ddpmpp   --data=datasets/ffhq-64x64.zip --cond=0 --arch=ddpmpp   --batch 256   --cres=1,2,2,2 --lr=2e-4 --dropout=0.05 --augment=0.15
