@@ -18,6 +18,7 @@
 | edm, arch=ddpmpp          | Ongoing | [link](https://www.dropbox.com/s/dgyoh120v0dj8wy/res_ffhq_edm_ddpmpp.txt?dl=0)|
 
 FFHQ, D=128, model [link](https://www.dropbox.com/s/kvwtb5czv1v33kw/training-state-193177.pt?dl=0)
+
 FFHQ, edm, model [link](https://www.dropbox.com/s/htcgx7oq3z2y9vf/training-state-195686.pkl?dl=0)
 
 
