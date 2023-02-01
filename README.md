@@ -2,6 +2,7 @@
 
 # TODO List
 
+
 |                             | Status  | Results                                                      |
 | --------------------------- | ------- | ------------------------------------------------------------ |
 | **CIFAR-10 32x32**          |         |                                                              |
@@ -16,12 +17,9 @@
 | D=2048, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/lxughy04zytu3xs/res_ffhq_ddpmpp_2048.txt?dl=0) |
 |                             |         |                                                              |
 |                             |         |                                                              |
+FFHQ, D=128, model [link](https://www.dropbox.com/s/kvwtb5czv1v33kw/training-state-193177.pt?dl=0)
 
-
-
-
-
-
+FFHQ, edm, model [link](https://www.dropbox.com/s/htcgx7oq3z2y9vf/training-state-195686.pkl?dl=0)
 
 
 
