@@ -1,3 +1,19 @@
+# ===== stf training ====== #
+
+# 2048 stf
+torchrun --standalone --nproc_per_node=8 train.py \
+  --outdir=training-runs --name 2048_stf_1_align_0 \
+  --data=datasets/cifar10-32x32.zip --cond=0 --arch=ncsnpp \
+  --pfgmv2=1 --batch 512 --align=0 --aug_dim 2048 --stf=1 --rbatch 1024
+
+# 2048 condition
+torchrun --standalone --nproc_per_node=8 train.py \
+  --outdir=training-runs --name 2048_cond_1 \
+  --data=datasets/cifar10-32x32.zip --cond=1 --arch=ncsnpp \
+  --pfgmv2=1 --batch 512 --align=0 --aug_dim 2048
+
+
+
 # ===== training =======
 # 512
 torchrun --standalone --nproc_per_node=8 train.py \

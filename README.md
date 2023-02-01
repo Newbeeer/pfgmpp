@@ -2,17 +2,20 @@
 
 # TODO List
 
-|                        | Status  | Results                                                                      |
-| ---------------------- | ------- |------------------------------------------------------------------------------|
-| **CIFAR-10 32x32**     |         |                                                                              |
-| D=128, arch=ddpmpp     | Ongoing | [link](https://www.dropbox.com/s/qysli101rer0fw5/res_ddpm_128_8GPU.txt?dl=0) |
-| D=2048, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/za6p5ndj2k4segf/res_ddpm_2048_8GPU.txt?dl=0)|
-| D=64, arch=ddpmpp      |         |                                                                              |
-| D=3072000, arch=ddpmpp |         |                                                                              |
-| **FFHQ 64x64**         |         |                                                                              |
-| D=128, arch=ddpmpp     | Ongoing | [link](https://www.dropbox.com/s/9uyqu4hj6lefrzo/res_ffhq_ddpmpp_128.txt?dl=0)|
-| D =512, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/3rxz8cg4t14cfdd/res_ffhq_ddpmpp_512.txt?dl=0)|
-| D=2048, arch=ddpmpp    | Ongoing | [link](https://www.dropbox.com/s/lxughy04zytu3xs/res_ffhq_ddpmpp_2048.txt?dl=0)|
+|                             | Status  | Results                                                      |
+| --------------------------- | ------- | ------------------------------------------------------------ |
+| **CIFAR-10 32x32**          |         |                                                              |
+| D=128, arch=ddpmpp          | Ongoing | [link](https://www.dropbox.com/s/qysli101rer0fw5/res_ddpm_128_8GPU.txt?dl=0) |
+| D=2048, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/za6p5ndj2k4segf/res_ddpm_2048_8GPU.txt?dl=0) |
+| D=2048, arch=ncsnpp, stf=1  |         |                                                              |
+| D=2048, arch=ncsnpp, cond=1 |         |                                                              |
+|                             |         |                                                              |
+| **FFHQ 64x64**              |         |                                                              |
+| D=128, arch=ddpmpp          | Ongoing | [link](https://www.dropbox.com/s/9uyqu4hj6lefrzo/res_ffhq_ddpmpp_128.txt?dl=0) |
+| D =512, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/3rxz8cg4t14cfdd/res_ffhq_ddpmpp_512.txt?dl=0) |
+| D=2048, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/lxughy04zytu3xs/res_ffhq_ddpmpp_2048.txt?dl=0) |
+|                             |         |                                                              |
+|                             |         |                                                              |
 
 
 

@@ -156,12 +156,7 @@ class EDMLoss:
 
             rnd_normal = torch.randn(images.shape[0], device=images.device)
             sigma_old = (rnd_normal * self.P_std + self.P_mean).exp()
-
-            if align:
-                # work align for large D
-                sigma = sigma_old * np.sqrt(1 + self.N / self.D)
-            else:
-                sigma = sigma_old
+            sigma = sigma_old
 
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
@@ -316,7 +311,6 @@ class EDMLoss:
         gt_direction = gt_direction.view(gt_direction.size(0), -1)
 
         # Normalizing the N+D-dimensional Poisson field
-
         gt_norm = gt_direction.norm(p=2, dim=1)
         gt_direction /= (gt_norm.view(-1, 1) + self.gamma)
         gt_direction *= np.sqrt(data_dim)
@@ -344,7 +338,6 @@ class EDMLoss:
         distance = distance[:, :, None]
         # Normalize the coefficients (effectively multiply by c(\tilde{x}) in the paper)
         coeff = distance / (torch.sum(distance, dim=1, keepdim=True) + 1e-7)
-        #print("pfgmv2 weights:", torch.sort(coeff.squeeze(), dim=1, descending=True)[0][:, 0])
 
         target = real_samples_vec.unsqueeze(0).repeat(len(perturbed_samples), 1, 1)
         # Calculate empirical Poisson field (N+D dimension in the augmented space)
@@ -353,7 +346,6 @@ class EDMLoss:
         gt_direction = gt_direction[:, :-1].float()
 
         return gt_direction
-        #return coeff.squeeze().float()
 
     def pfgm_perturation(self, samples, r):
 

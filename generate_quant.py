@@ -405,7 +405,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     done_list = []
 
-    bits_list = [5, 6]
+    bits_list = [5, 6, 7, 8, 9]
     #bits_list = [14]
     QTensor = namedtuple('QTensor', ['tensor', 'scale', 'zero_point'])
     def quantize_tensor(x, num_bits=8):

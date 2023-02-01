@@ -98,18 +98,12 @@ def edm_sampler(
         sigma_min = max(sigma_min, net.sigma_min)
         sigma_max = min(sigma_max, net.sigma_max)
 
-        if align:
-            sigma_min *= np.sqrt(1 + N/D)
-            sigma_max *= np.sqrt(1 + N/D)
-
-        #print("sigma max:", sigma_max, "sigma min:", sigma_min)
         # Time step discretization.
         step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
         t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (
                     sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
         t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
-        #t_steps = t_steps[:-2]
         if pfgmv2:
             x_next = latents.to(torch.float64)
         else:
@@ -118,20 +112,6 @@ def edm_sampler(
         for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
 
             x_cur = x_next
-
-            gaussian = torch.randn((len(x_cur), N)).to(x_cur.device)
-            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            unit_gaussian = unit_gaussian.view_as(x_cur)
-            #if i < 15:
-            x_cur += torch.randn_like(x_cur) * t_cur * alpha
-            # radius = x_cur.view(len(x_cur), -1).norm(p=2, dim=1) * alpha
-            # radius = radius.reshape((-1, 1, 1, 1))
-            # x_cur += unit_gaussian * radius
-
-            # norm = x_cur.view(len(x_cur), -1).norm(p=2, dim=1)/(t_cur * np.sqrt(N))
-            # print(f"i:{i}, t cur:{t_cur:.3f}, norm/\sigma * sqrt({N}):",
-            #      f"max: {max(norm):.3f}, min: {min(norm):.3f}")
-
             # Increase noise temporarily.
             gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
             t_hat = net.round_sigma(t_cur + gamma * t_cur)
@@ -144,11 +124,9 @@ def edm_sampler(
 
             # Apply 2nd order correction.
             if i < num_steps - 1:
-
                 denoised = net(x_next, t_next, class_labels).to(torch.float64)
                 d_prime = (x_next - denoised) / t_next
                 x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-    #print("mean final norm:", x_next.reshape((len(x_next), -1)).norm(p=2, dim=1).mean(), x_next.shape)
     return x_next
 
 #----------------------------------------------------------------------------
@@ -395,7 +373,6 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
 
-
     if not edm:
         if use_pickle:
             stats = glob.glob(os.path.join(outdir, "training-state-*.pkl"))
@@ -405,7 +382,12 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     done_list = []
 
+    #outdir = '/scratch/ylxu/edm/3072000'
     for ckpt_dir in stats:
+        # ckpt_num = int(ckpt_dir[-9:-3])
+        # if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
+        #     continue
+        # ckpt_dir = outdir + ckpt_dir[-25:-3] + '.pkl'
         # Load network.
         dist.print0(f'Loading network from "{ckpt_dir}"...')
         # Rank 0 goes first.
