@@ -32,101 +32,41 @@ def edm_sampler(
     pfgmv2=False, align=False, D=128, align_precond=False,
 ):
 
-    if pfgm:
-        #print("rho:", rho)
-        # Adjust noise levels based on what's supported by the network.
-        N = net.img_channels * net.img_resolution * net.img_resolution
-        r_min = 0.55 / np.sqrt(N / (D - 2 - 1))
-        r_max = 2500 / np.sqrt(N / (D - 2 - 1))
 
-        # Time step discretization.
-        step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
-        t_steps = (r_max ** (1 / rho) + step_indices / (num_steps - 1) * (
-                    r_min ** (1 / rho) - r_max ** (1 / rho))) ** rho
-        t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
+    N = net.img_channels * net.img_resolution * net.img_resolution
+    # Adjust noise levels based on what's supported by the network.
+    sigma_min = max(sigma_min, net.sigma_min)
+    sigma_max = min(sigma_max, net.sigma_max)
 
+    # Time step discretization.
+    step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
+    t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (
+                sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
+    t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
-        # samples_norm = torch.sqrt(latents) * r_max
-        # samples_norm = samples_norm.view(len(samples_norm), -1)
-        # # Uniformly sample the angle direction
-        # gaussian = torch.randn(len(latents), N).to(samples_norm.device)
-        # unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-        # # Radius times the angle direction
-        # init_samples = unit_gaussian * samples_norm
-        # latents = init_samples.reshape((len(latents), net.img_channels, net.img_resolution, net.img_resolution))
+    if pfgmv2:
         x_next = latents.to(torch.float64)
-
-        # Main sampling loop.
-        for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
-            x_cur = x_next
-
-            # Increase noise temporarily.
-            t_hat = net.round_sigma(t_cur)
-            x_hat = x_cur
-
-            # Euler step.
-            x_drift, z_drift = net(x_hat, t_hat, class_labels)
-            x_drift = x_drift.view(len(x_drift), -1).to(torch.float64)
-            z_drift = z_drift.to(torch.float64) * np.sqrt(D)
-            # Predicted normalized Poisson field
-            v = torch.cat([x_drift, z_drift[:, None]], dim=1)
-            dt_dz = 1 / (v[:, -1] + 1e-5)
-            dx_dt = v[:, :-1].view(len(x_drift), net.img_channels,
-                                   net.img_resolution,
-                                   net.img_resolution)
-            dx_dz = dx_dt * dt_dz.view(-1, *([1] * len(x_hat.size()[1:])))
-            d_cur = dx_dz
-            x_next = x_hat + (t_next - t_hat) * d_cur
-
-            # Apply 2nd order correction.
-            if i < num_steps - 1:
-                x_drift_new, z_drift_new = net(x_next, t_next, class_labels)
-                x_drift_new = x_drift_new.view(len(x_drift_new), -1).to(torch.float64)
-                z_drift_new = z_drift_new.to(torch.float64) * np.sqrt(D)
-                # Predicted normalized Poisson field
-                v_new = torch.cat([x_drift_new, z_drift_new[:, None]], dim=1)
-                dt_dz_new = 1 / (v_new[:, -1] + 1e-5)
-                dx_dt_new = v_new[:, :-1].view(len(x_drift_new), net.img_channels,
-                                       net.img_resolution,
-                                       net.img_resolution)
-                dx_dz_new = dx_dt_new * dt_dz_new.view(-1, *([1] * len(x_next.size()[1:])))
-                d_prime = dx_dz_new
-                x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
     else:
-        N = net.img_channels * net.img_resolution * net.img_resolution
-        # Adjust noise levels based on what's supported by the network.
-        sigma_min = max(sigma_min, net.sigma_min)
-        sigma_max = min(sigma_max, net.sigma_max)
-
-        # Time step discretization.
-        step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
-        t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (
-                    sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
-        t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
-
-        if pfgmv2:
-            x_next = latents.to(torch.float64)
-        else:
-            x_next = latents.to(torch.float64) * t_steps[0]
+        x_next = latents.to(torch.float64) * t_steps[0]
         # Main sampling loop.
-        for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
+    for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
 
-            x_cur = x_next
-            # Increase noise temporarily.
-            gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-            t_hat = net.round_sigma(t_cur + gamma * t_cur)
-            x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
-            # Euler step.
+        x_cur = x_next
+        # Increase noise temporarily.
+        gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
+        t_hat = net.round_sigma(t_cur + gamma * t_cur)
+        x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
+        # Euler step.
 
-            denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
-            d_cur = (x_hat - denoised) / t_hat
-            x_next = x_hat + (t_next - t_hat) * d_cur
+        denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
+        d_cur = (x_hat - denoised) / t_hat
+        x_next = x_hat + (t_next - t_hat) * d_cur
 
-            # Apply 2nd order correction.
-            if i < num_steps - 1:
-                denoised = net(x_next, t_next, class_labels).to(torch.float64)
-                d_prime = (x_next - denoised) / t_next
-                x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
+        # Apply 2nd order correction.
+        if i < num_steps - 1:
+            denoised = net(x_next, t_next, class_labels).to(torch.float64)
+            d_prime = (x_next - denoised) / t_next
+            x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
     return x_next
 
 #----------------------------------------------------------------------------
@@ -271,17 +211,12 @@ class StackedRandomGenerator:
             sample_norm = beta_gen.sample().to(kwargs['device']).double()
             # inverse beta distribution
             inverse_beta = sample_norm / (1-sample_norm)
-            if kwargs['pfgm']:
-                r_max = 2500 / np.sqrt(N / (D - 2 - 1))
-                sample_norm = torch.sqrt(inverse_beta) * r_max
-            elif kwargs['pfgmv2']:
+            if kwargs['pfgmv2']:
                 if N < 256 * 256 * 3:
                     sigma_max = 80
                 else:
                     raise NotImplementedError
 
-                if kwargs['align']:
-                    sigma_max *= np.sqrt(1 + N/D)
                 sample_norm = torch.sqrt(inverse_beta) * sigma_max * np.sqrt(D)
 
             gaussian = torch.randn(N).to(sample_norm.device)
