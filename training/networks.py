@@ -278,8 +278,6 @@ class SongUNet(torch.nn.Module):
         super().__init__()
 
         self.pfgm = pfgm
-        if self.pfgm:
-            out_channels += 1
         self.label_dropout = label_dropout
         emb_channels = model_channels * channel_mult_emb
         noise_channels = model_channels * channel_mult_noise
@@ -388,11 +386,7 @@ class SongUNet(torch.nn.Module):
                     x = torch.cat([x, skips.pop()], dim=1)
                 x = block(x, emb)
 
-        if self.pfgm:
-            scalar = F.adaptive_avg_pool2d(aux[:, -1], (1, 1))
-            return aux[:, :-1], scalar.reshape(len(scalar))
-        else:
-            return aux
+        return aux
 
 #----------------------------------------------------------------------------
 # Reimplementation of the ADM architecture from the paper

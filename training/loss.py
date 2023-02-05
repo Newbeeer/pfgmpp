@@ -106,57 +106,11 @@ class EDMLoss:
         print(f"In EDM loss: D:{self.D}, N:{self.N}")
 
     def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, align_precond=False, ref_images=None):
-        if pfgm:
 
-            # ===== obsolete ====== #
-            r_min = 0.55 / np.sqrt(3072 / (self.D - 2 - 1))
-            r_max = 2500 / np.sqrt(3072 / (self.D - 2 - 1))
-
-            s = torch.rand(images.shape[0], device=images.device)
-            # restrict #
-            r_restrict = 230 / np.sqrt(
-                self.N / (self.D - 2 - 1))
-            s_restrict = (np.log(r_restrict) - np.log(r_min)) / \
-                         (np.log(r_max) - np.log(r_min))
-            s = torch.rand(images.shape[0], device=images.device)
-            s[: int(len(images) * 0.6)] = torch.rand(
-                int(len(images) * 0.6),
-                device=images.device) * s_restrict
-
-            r = r_min * (r_max / r_min) ** s
-
-            # Sampling form inverse-beta distribution
-            samples_norm = np.random.beta(a=self.N / 2., b=(self.D - 1) / 2.,
-                                          size=images.shape[0])
-            inverse_beta = samples_norm / (1 - samples_norm)
-            inverse_beta = torch.from_numpy(inverse_beta).to(images.device)
-            # Sampling from p_r(R) by change-of-variable
-            samples_norm = torch.sqrt(r ** 2 * inverse_beta)
-            samples_norm = samples_norm.view(len(samples_norm), -1)
-            # Uniformly sample the angle direction
-            gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
-            unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-            # Construct the perturbation for x
-            perturbation_x = unit_gaussian * samples_norm
-            perturbation_x = perturbation_x.view_as(images)
-
-            # Perturb x
-            y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
-            perturbed_x = y + perturbation_x
-            net_x, net_z = net(perturbed_x, r, labels, self.D, augment_labels=augment_labels)
-            net_x = net_x.view(net_x.shape[0], -1)
-            # Predicted N+D-dimensional Poisson field
-            D_yn = torch.cat([net_x, net_z[:, None]], dim=1)
-
-            # # Augment the data with extra dimension z
-            perturbed_samples_vec = torch.cat((perturbed_x.reshape(len(images), -1),
-                                               r[:, None]), dim=1).float()
-            weight = torch.ones((len(perturbed_samples_vec), 1), device=images.device)
-        elif pfgmv2:
+        if pfgmv2:
 
             rnd_normal = torch.randn(images.shape[0], device=images.device)
-            sigma_old = (rnd_normal * self.P_std + self.P_mean).exp()
-            sigma = sigma_old
+            sigma = (rnd_normal * self.P_std + self.P_mean).exp()
 
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
@@ -194,10 +148,7 @@ class EDMLoss:
                 if augment_pipe is not None else (images, None)
             # update augmented original images
             ref_images[:len(y)] = y
-        if pfgm:
-            target = self.pfgm_target(perturbed_samples_vec, ref_images)
-            target = target.view_as(D_yn)
-        elif pfgmv2:
+        if pfgmv2:
             if stf:
                 target = self.pfgmv2_target(r.squeeze(), y+n, ref_images)
                 target = target.view_as(y)
