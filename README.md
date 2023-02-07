@@ -8,6 +8,7 @@
 | **CIFAR-10 32x32**          |         |                                                              |
 | D=128, arch=ddpmpp          | Ongoing | [link](https://www.dropbox.com/s/qysli101rer0fw5/res_ddpm_128_8GPU.txt?dl=0) |
 | D=2048, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/za6p5ndj2k4segf/res_ddpm_2048_8GPU.txt?dl=0) |
+| D=2048, arch=ncsnpp         |         | [link](https://www.dropbox.com/s/jnwh3yjbl4gmwfx/result_8GPU.txt?dl=0)|
 | D=2048, arch=ncsnpp, stf=1  |         | [link](https://www.dropbox.com/s/t1u9bz8ae8yzy3q/res_stf_1.txt?dl=0)|
 | D=2048, arch=ncsnpp, cond=1 |         | [link](https://www.dropbox.com/s/a5ysp4sw5yxfnas/res_cond_1.txt?dl=0)|
 |                             |         |                                                              |
