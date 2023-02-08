@@ -63,32 +63,32 @@ def train(y, N, D, pfgmpp):
     D_yn = net(y + n, sigma)
     loss = (D_yn - y) ** 2
     ### === Diffusion Model === ###
-	else: 
-		######## === PFGM++ === #######
-		rnd_normal = torch.randn(images.shape[0], device=images.device)
-		sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
-		r = sigma.double() * np.sqrt(self.D).astype(np.float64) # r=sigma\sqrt{D} formula
+  else: 
+    ######## === PFGM++ === #######
+    rnd_normal = torch.randn(images.shape[0], device=images.device)
+    sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
+    r = sigma.double() * np.sqrt(self.D).astype(np.float64) # r=sigma\sqrt{D} formula
 
-		# = sample noise from perturbation kernel p_r = #
-		# Sampling form inverse-beta distribution
-		samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
-                              		size=images.shape[0]).astype(np.double)
-		inverse_beta = samples_norm / (1 - samples_norm +1e-8)
-		inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
-		# Sampling from p_r(R) by change-of-variable (c.f. Appendix B)
-		samples_norm = (r * torch.sqrt(inverse_beta +1e-8)).view(len(samples_norm), -1)
-		# Uniformly sample the angle component
-		gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
-		unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-		# Construct the perturbation 
-		perturbation_x = (unit_gaussian * samples_norm).float()
-		# = sample noise from perturbation kernel p_r = #
+    # = sample noise from perturbation kernel p_r = #
+    # Sampling form inverse-beta distribution
+    samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
+                                 size=images.shape[0]).astype(np.double)
+    inverse_beta = samples_norm / (1 - samples_norm +1e-8)
+    inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
+    # Sampling from p_r(R) by change-of-variable (c.f. Appendix B)
+    samples_norm = (r * torch.sqrt(inverse_beta +1e-8)).view(len(samples_norm), -1)
+    # Uniformly sample the angle component
+    gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
+    unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+    # Construct the perturbation 
+    perturbation_x = (unit_gaussian * samples_norm).float()
+    # = sample noise from perturbation kernel p_r = #
 
-		sigma = sigma.reshape((len(sigma), 1, 1, 1))
-		n = perturbation_x.view_as(y)
-		D_yn = net(y + n, sigma)
-		loss = (D_yn - y) ** 2
-		######## === PFGM++ === #######
+    sigma = sigma.reshape((len(sigma), 1, 1, 1))
+    n = perturbation_x.view_as(y)
+    D_yn = net(y + n, sigma)
+    loss = (D_yn - y) ** 2
+    ######## === PFGM++ === #######
 ```
 
 *Sampling hyperparameter transfer*. The example we provide is a simplified version of  [`generate.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo. As shown in the figure below, the only modification is the prior sampling process. Hence we only include the comparision of prior sampling for diffusion models / PFGM++ in the code snippet.
@@ -97,32 +97,32 @@ def train(y, N, D, pfgmpp):
 
 ```python
 def generate(sigma_max, N, D, pfgmpp)
-	'''
-	sigma_max: starting condition for diffusion models
-	N: data dimension
-	D: augmented dimension
-	pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
-	'''
+  '''
+  sigma_max: starting condition for diffusion models
+  N: data dimension
+  D: augmented dimension
+  pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
+  '''
   if not pfgmpp:
-		### === Diffusion Model === ###
-		x = torch.randn_like(data_size) * sigma_max
-		### === Diffusion Model === ###
-	else:
-		######## === PFGM++ === #######
-		# Sampling form inverse-beta distribution
-		r = sigma_max * np.sqrt(self.D) # r=sigma\sqrt{D} formula
-		samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
-                              		size=data_size).astype(np.double)
-		inverse_beta = samples_norm / (1 - samples_norm +1e-8)
-		inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
-		# Sampling from p_r(R) by change-of-variable (c.f. Appendix B)
-		samples_norm = (r * torch.sqrt(inverse_beta +1e-8)).view(len(samples_norm), -1)
-		# Uniformly sample the angle component
-		gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
-		unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
-		# Construct the perturbation 
-		x = (unit_gaussian * samples_norm).float().view(data_size)
-		######## === PFGM++ === #######
+    ### === Diffusion Model === ###
+    x = torch.randn_like(data_size) * sigma_max
+    ### === Diffusion Model === ###
+  else:
+    ######## === PFGM++ === #######
+    # Sampling form inverse-beta distribution
+    r = sigma_max * np.sqrt(self.D) # r=sigma\sqrt{D} formula
+    samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
+                                  size=data_size).astype(np.double)
+    inverse_beta = samples_norm / (1 - samples_norm +1e-8)
+    inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
+    # Sampling from p_r(R) by change-of-variable (c.f. Appendix B)
+    samples_norm = (r * torch.sqrt(inverse_beta +1e-8)).view(len(samples_norm), -1)
+    # Uniformly sample the angle component
+    gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
+    unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+    # Construct the perturbation 
+    x = (unit_gaussian * samples_norm).float().view(data_size)
+    ######## === PFGM++ === #######
 ```
 
 Please refer to **Appendix C.2** for detailed hyperparameter transfer procedures from **EDM** and **DDPM​**.
