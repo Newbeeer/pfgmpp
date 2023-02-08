@@ -52,8 +52,8 @@ class VELoss:
         self.N = N
         print(f"In VE loss: D:{self.D}, N:{self.N}")
 
-    def __call__(self, net, images, labels, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, align_precond=False, ref_images=None):
-        if pfgmv2:
+    def __call__(self, net, images, labels, augment_pipe=None, stf=False, pfgmpp=False, ref_images=None):
+        if pfgmpp:
             rnd_uniform = torch.rand(images.shape[0], device=images.device)
             sigma = self.sigma_min * ((self.sigma_max / self.sigma_min) ** rnd_uniform)
 
@@ -105,9 +105,9 @@ class EDMLoss:
         self.opts = opts
         print(f"In EDM loss: D:{self.D}, N:{self.N}")
 
-    def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgm=False, pfgmv2=False, align=False, align_precond=False, ref_images=None):
+    def __call__(self, net, images, labels=None, augment_pipe=None, stf=False, pfgmpp=False, ref_images=None):
 
-        if pfgmv2:
+        if pfgmpp:
 
             rnd_normal = torch.randn(images.shape[0], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
@@ -137,7 +137,6 @@ class EDMLoss:
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
-            #sigma = torch.ones_like(sigma) * 20
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma
@@ -148,9 +147,9 @@ class EDMLoss:
                 if augment_pipe is not None else (images, None)
             # update augmented original images
             ref_images[:len(y)] = y
-        if pfgmv2:
+        if pfgmpp:
             if stf:
-                target = self.pfgmv2_target(r.squeeze(), y+n, ref_images)
+                target = self.pfgmpp_target(r.squeeze(), y+n, ref_images)
                 target = target.view_as(y)
             else:
                 target = y
@@ -178,65 +177,10 @@ class EDMLoss:
             distance = torch.exp(distance)
             distance = distance[:, :, None]
             weights = distance / (torch.sum(distance, dim=1, keepdim=True))
-
-            # print(torch.sort(distance.squeeze(), dim=1, descending=True)[0])
-            # print("idx:", torch.sort(distance.squeeze(), dim=1, descending=True)[1][:, 0])
-            # diff = - (perturbed_samples_vec.unsqueeze(1) - samples_full_vec)
-            # gt_direction2 = torch.sum(distance * diff, dim=1)
             target = samples_full_vec.unsqueeze(0).repeat(len(perturbed_samples), 1, 1)
-            #print("stf weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
 
             gt_direction = torch.sum(weights * target, dim=1)
-            # perturbed_samples_vec = torch.cat((perturbed_samples_vec,
-            #                                    torch.ones((len(perturbed_samples), 1)).to(perturbed_samples_vec.device) * sigmas.unsqueeze(1) * np.sqrt(self.D))
-            #                                   , dim=1)
-            #self.pfgm_target(perturbed_samples_vec, samples_full)
-            D_list = [2 ** i for i in range(1, 23)]
-            weight_diff = weights.squeeze().cpu().numpy()
-            sigma_list = np.linspace(0, 1, 1000)
-            # sigma_list = 0.01 * (200 / 0.01) ** sigma_list
-            sigma_list = [1, 10, 20, 40, 80]
-            tvd_collect = np.ones((len(D_list), len(sigma_list)))
-            norm_collect = np.ones((len(D_list), len(sigma_list), 1024))
-            distance_collect = np.ones((len(D_list), len(sigma_list)))
-            for c, cur_sigma in enumerate(sigma_list):
-                for i, D in enumerate(D_list):
-                    self.D = D
-                    input_sigma = torch.ones_like(sigmas) * cur_sigma
 
-                    #perturbed_samples_new = self.pfgm_perturation(samples_full[: len(perturbed_samples)], input_sigma.squeeze() * np.sqrt(D))
-                    #gt_pfgm = self.pfgmv2_target(input_sigma.squeeze() * np.sqrt(D), perturbed_samples, samples_full)
-                    #print("pfgm weights:", torch.sort(weights_pfgm.squeeze(), dim=1, descending=True)[0][:, 0])
-                    #print("diff weights:", torch.sort(weights.squeeze(), dim=1, descending=True)[0][:, 0])
-
-                    #weights_pfgm = weights_pfgm.cpu().numpy()
-                    # tvd = 0.5 * abs(weights_pfgm -
-                    #                np.ones_like(weights_pfgm) / len(samples_full)).sum(1).mean()
-                    #tvd = 0.5 * abs(weights_pfgm - weight_diff).sum(1).mean()
-                    #print(f"s:{cur_sigma}, D:{D}, tvd:{tvd}")
-                    # kl = (weights_pfgm * np.log((weights_pfgm + 1e-5)/
-                    #                                   (np.ones_like(weights_pfgm) / len(samples_full) + 1e-5))).sum(1).mean()
-
-                    # kl = (weights_pfgm * np.log((weights_pfgm + 1e-5)/
-                    #                                   (weight_diff + 1e-5))).sum(1).mean()
-                    #tvd_collect[i, c] = tvd
-
-                    input_sigma = torch.ones((1024)).to(samples_full.device) * cur_sigma
-                    perturb = self.pfgm_perturation(samples_full[:1024], input_sigma.squeeze() * np.sqrt(D))
-                    # mean_norm = torch.norm(perturb.view(len(perturb), -1), p=2, dim=1).mean().cpu().numpy()
-                    norm = torch.norm(perturb.view(len(perturb), -1), p=2, dim=1).cpu().numpy()
-                    # print(f"s:{cur_sigma}, D:{D}, norm:{mean_norm}")
-                    norm_collect[i, c] = norm
-
-                    #avg_dis = (gt_direction - gt_pfgm).norm(p=2, dim=1).mean()
-                    #distance_collect[i, c] = avg_dis.detach().cpu().numpy()
-
-            #np.savez('dis_20', dis=distance_collect, power=np.log2(D_list))
-            #np.savez('tvd_prior_s80_N_D', tvd=tvd_collect, power=np.log2(D_list))
-            #np.savez('tvd_prior_1_23_D', tvd=tvd_collect, sigma=sigma_list)
-            #np.savez('kl_prior_1_23', tvd=tvd_collect, sigma=sigma_list)
-            np.savez('norm', norm=norm_collect, sigma=sigma_list)
-            exit(0)
             return gt_direction
 
     def pfgm_target(self, perturbed_samples_vec, samples_full):
@@ -271,7 +215,7 @@ class EDMLoss:
 
         return target
 
-    def pfgmv2_target(self, r, perturbed_samples, samples_full):
+    def pfgmpp_target(self, r, perturbed_samples, samples_full):
         # # Augment the data with extra dimension z
         perturbed_samples_vec = torch.cat((perturbed_samples.reshape(len(perturbed_samples), -1),
                                            r[:, None]), dim=1).double()

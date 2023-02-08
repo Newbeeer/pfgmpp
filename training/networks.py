@@ -561,7 +561,7 @@ class VEPrecond(torch.nn.Module):
         sigma_max       = 100,          # Maximum supported noise level.
         model_type      = 'SongUNet',   # Class name of the underlying model.
         pfgm=False,
-        pfgmv2=False,
+        pfgmpp=False,
         D=128,
         **model_kwargs,                 # Keyword arguments for the underlying model.
     ):
@@ -669,7 +669,7 @@ class EDMPrecond(torch.nn.Module):
         img_channels,                       # Number of color channels.
         label_dim       = 0,                # Number of class labels, 0 = unconditional.
         pfgm = False,
-        pfgmv2=False,
+        pfgmpp=False,
         D = 128,
         use_fp16        = False,            # Execute the underlying model at FP16 precision?
         sigma_min       = 0,                # Minimum supported noise level.
@@ -686,7 +686,7 @@ class EDMPrecond(torch.nn.Module):
         self.N = img_channels * img_resolution * img_resolution
         self.label_dim = label_dim
         self.pfgm = pfgm
-        self.pfgmv2 = pfgmv2
+        self.pfgmpp = pfgmpp
         self.use_fp16 = use_fp16
         self.small = small
         self.sigma_min = sigma_min

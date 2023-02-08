@@ -28,8 +28,8 @@ from torch_utils import misc
 def edm_sampler(
     net, latents, class_labels=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
-    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, alpha=0., pfgm=False,
-    pfgmv2=False, align=False, D=128, align_precond=False,
+    S_churn=0, S_min=0, S_max=float('inf'), S_noise=0,
+    pfgmpp=False,
 ):
 
 
@@ -44,7 +44,7 @@ def edm_sampler(
                 sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
     t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
-    if pfgmv2:
+    if pfgmpp:
         x_next = latents.to(torch.float64)
     else:
         x_next = latents.to(torch.float64) * t_steps[0]
@@ -211,14 +211,13 @@ class StackedRandomGenerator:
             sample_norm = beta_gen.sample().to(kwargs['device']).double()
             # inverse beta distribution
             inverse_beta = sample_norm / (1-sample_norm)
-            if kwargs['pfgmv2']:
-                if N < 256 * 256 * 3:
-                    sigma_max = 80
-                else:
-                    raise NotImplementedError
 
-                sample_norm = torch.sqrt(inverse_beta) * sigma_max * np.sqrt(D)
+            if N < 256 * 256 * 3:
+                sigma_max = 80
+            else:
+                raise NotImplementedError
 
+            sample_norm = torch.sqrt(inverse_beta) * sigma_max * np.sqrt(D)
             gaussian = torch.randn(N).to(sample_norm.device)
             unit_gaussian = gaussian / torch.norm(gaussian, p=2)
             init_sample = unit_gaussian * sample_norm
@@ -281,27 +280,15 @@ def parse_int_list(s):
 @click.option('--edm',          help='load edm model', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--use_pickle',          help='load model by pickle', metavar='BOOL',              type=bool, default=False, show_default=True)
 
-@click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
-@click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
-@click.option('--align',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
-@click.option('--align_precond',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--pfgmpp',          help='Train PFGM++', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
 
-def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, edm, use_pickle, device=torch.device('cuda'), **sampler_kwargs):
+def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgmpp, aug_dim, edm, device=torch.device('cuda'), **sampler_kwargs):
     """Generate random images using the techniques described in the paper
     "Elucidating the Design Space of Diffusion-Based Generative Models".
 
     Examples:
 
-    \b
-    # Generate 64 images and save them as out/*.png
-    python generate.py --outdir=out --seeds=0-63 --batch=64 \\
-        --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-cifar10-32x32-cond-vp.pkl
-
-    \b
-    # Generate 1024 images using 2 GPUs
-    torchrun --standalone --nproc_per_node=2 generate.py --outdir=out --seeds=0-999 --batch=64 \\
-        --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-cifar10-32x32-cond-vp.pkl
     """
     dist.init()
     num_batches = ((len(seeds) - 1) // (max_batch_size * dist.get_world_size()) + 1) * dist.get_world_size()
@@ -309,20 +296,12 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
 
     if not edm:
-        if use_pickle:
-            stats = glob.glob(os.path.join(outdir, "training-state-*.pkl"))
-        else:
-            stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
+        stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
     else:
         stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
     done_list = []
 
-    #outdir = '/scratch/ylxu/edm/3072000'
     for ckpt_dir in stats:
-        # ckpt_num = int(ckpt_dir[-9:-3])
-        # if ckpt_num < ckpt or ckpt_num > end_ckpt or ckpt_num in done_list:
-        #     continue
-        # ckpt_dir = outdir + ckpt_dir[-25:-3] + '.pkl'
         # Load network.
         dist.print0(f'Loading network from "{ckpt_dir}"...')
         # Rank 0 goes first.
@@ -337,14 +316,9 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                 net = pickle.load(f)['ema'].to(device)
             ckpt_num = 0
         else:
-            if use_pickle:
-                with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
-                    net = pickle.load(f)['ema'].to(device)
-                    ckpt_num = int(ckpt_dir[-10:-4])
-            else:
-                data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
-                net = data['ema'].eval().to(device)
-                ckpt_num = int(ckpt_dir[-9:-3])
+            data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
+            net = data['ema'].eval().to(device)
+            ckpt_num = int(ckpt_dir[-9:-3])
 
             assert net.D == aug_dim
 
@@ -376,13 +350,11 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             N = net.img_channels * net.img_resolution * net.img_resolution
             # Pick latents and labels.
             rnd = StackedRandomGenerator(device, batch_seeds)
-            if pfgm or pfgmv2:
+            if pfgmpp:
                 latents = rnd.rand_beta_prime([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
                                     N=N,
                                     D=aug_dim,
-                                    pfgm=pfgm,
-                                    pfgmv2=pfgmv2,
-                                    align=align,
+                                    pfgmpp=pfgmpp,
                                     device=device)
             else:
                 latents = rnd.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
@@ -400,8 +372,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             have_ablation_kwargs = any(x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
             sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
             with torch.no_grad():
-                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
-                                pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, **sampler_kwargs)
+                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like, pfgmpp=pfgmpp, D=aug_dim,  **sampler_kwargs)
 
             if save_images:
                 # save a small batch of images

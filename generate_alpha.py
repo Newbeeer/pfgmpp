@@ -29,7 +29,7 @@ def edm_sampler(
     net, latents, class_labels=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
     S_churn=0, S_min=0, S_max=float('inf'), S_noise=0, alpha=0., pfgm=False,
-    pfgmv2=False, align=False, D=128, align_precond=False,
+    pfgmpp=False, align=False, D=128, align_precond=False,
 ):
 
     if pfgm:
@@ -110,7 +110,7 @@ def edm_sampler(
         t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])  # t_N = 0
 
         #t_steps = t_steps[:-2]
-        if pfgmv2:
+        if pfgmpp:
             x_next = latents.to(torch.float64)
         else:
             x_next = latents.to(torch.float64) * t_steps[0]
@@ -303,7 +303,7 @@ class StackedRandomGenerator:
             if kwargs['pfgm']:
                 r_max = 2500 / np.sqrt(N / (D - 2 - 1))
                 sample_norm = torch.sqrt(inverse_beta) * r_max
-            elif kwargs['pfgmv2']:
+            elif kwargs['pfgmpp']:
                 #S_max = 200 if D==128 else 80
                 S_max = 80
                 if kwargs['align']:
@@ -372,12 +372,12 @@ def parse_int_list(s):
 @click.option('--edm',          help='load edm model', metavar='BOOL',              type=bool, default=False, show_default=True)
 
 @click.option('--pfgm',          help='Train PFGM', metavar='BOOL',              type=bool, default=False, show_default=True)
-@click.option('--pfgmv2',          help='Train PFGMv2', metavar='BOOL',              type=bool, default=False, show_default=True)
+@click.option('--pfgmpp',          help='Train pfgmpp', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--align',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--align_precond',          help='Align', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
 
-def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmv2, align, aug_dim, edm, device=torch.device('cuda'), **sampler_kwargs):
+def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgm, pfgmpp, align, aug_dim, edm, device=torch.device('cuda'), **sampler_kwargs):
     """Generate random images using the techniques described in the paper
     "Elucidating the Design Space of Diffusion-Based Generative Models".
 
@@ -456,13 +456,13 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                 N = net.img_channels * net.img_resolution * net.img_resolution
                 # Pick latents and labels.
                 rnd = StackedRandomGenerator(device, batch_seeds)
-                if pfgm or pfgmv2:
+                if pfgm or pfgmpp:
                     latents = rnd.rand_beta_prime(
                         [batch_size, net.img_channels, net.img_resolution, net.img_resolution],
                         N=N,
                         D=aug_dim,
                         pfgm=pfgm,
-                        pfgmv2=pfgmv2,
+                        pfgmpp=pfgmpp,
                         align=align,
                         device=device)
                 else:
@@ -482,7 +482,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                     x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
                 sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
                 images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like,
-                                    pfgm=pfgm, pfgmv2=pfgmv2, D=aug_dim, align=align, alpha=alpha, **sampler_kwargs)
+                                    pfgm=pfgm, pfgmpp=pfgmpp, D=aug_dim, align=align, alpha=alpha, **sampler_kwargs)
                 # Save images
                 if save_images:
                     # save a small batch of images

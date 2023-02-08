@@ -32,14 +32,14 @@ You can train new models using `train.py`. For example:
 ```.bash
 torchrun --standalone --nproc_per_node=8 train.py --outdir=training-runs --name exp_name \
 --data=datasets/cifar10-32x32.zip --cond=0 --arch=arch \
---pfgmv2=1 --batch 512 \
+--pfgmpp=1 --batch 512 \
 --aug_dim aug_dim
 
 exp_name: name of experiments
 aug_dim: D (additional dimensions)  
 arch: model architectures. options: ncsnpp | ddpmpp
 
---pfgmv2 flag: use PFGM++ framework
+--pfgmpp flag: use PFGM++ framework
 ```
 
 The above example uses the default batch size of 512 images (controlled by `--batch`) that is divided evenly among 8 GPUs (controlled by `--nproc_per_node`) to yield 64 images per GPU. Training large models may run out of GPU memory; the best way to avoid this is to limit the per-GPU batch size, e.g., `--batch-gpu=32`. This employs gradient accumulation to yield the same results as using full per-GPU batches. See [`python train.py --help`](./docs/train-help.txt) for the full list of options.
@@ -55,13 +55,13 @@ For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=dat
   ```zsh
   torchrun --standalone --nproc_per_node=8 generate.py \
   --seeds=0-49999 --outdir=./training-runs/exp_name \
-  --pfgmv2=1 --aug_dim=aug_dim
+  --pfgmpp=1 --aug_dim=aug_dim
      
   exp_name: name of experiments
   aug_dim: D (additional dimensions)  
   arch: model architectures. options: ncsnpp | ddpmpp
   
-  --pfgmv2 flag: use PFGM++ framework
+  --pfgmpp flag: use PFGM++ framework
   ```
 
   Note that the numerical value of FID varies across different random seeds and is highly sensitive to the number of images. By default, `fid.py` will always use 50,000 generated images; providing fewer images will result in an error, whereas providing more will use a random subset. To reduce the effect of random variation, we recommend repeating the calculation multiple times with different seeds, e.g., `--seeds=0-49999`, `--seeds=50000-99999`, and `--seeds=100000-149999`. In the EDM paper, they calculated each FID three times and reported the minimum.
