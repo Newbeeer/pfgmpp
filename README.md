@@ -55,14 +55,14 @@ def train(y, N, D, pfgmpp):
   pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
   '''
   
-	if not pfgmpp:
-		### === Diffusion Model === ###
-		rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
-		sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
-		n = torch.randn_like(y) * sigma
-		D_yn = net(y + n, sigma)
-		loss = (D_yn - y) ** 2
-		### === Diffusion Model === ###
+  if not pfgmpp:
+    ### === Diffusion Model === ###
+    rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
+    sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
+    n = torch.randn_like(y) * sigma
+    D_yn = net(y + n, sigma)
+    loss = (D_yn - y) ** 2
+    ### === Diffusion Model === ###
 	else: 
 		######## === PFGM++ === #######
 		rnd_normal = torch.randn(images.shape[0], device=images.device)
