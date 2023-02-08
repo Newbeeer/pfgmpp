@@ -36,7 +36,7 @@ We also provide the original instruction for [set-ups](#the-instructions-for-set
 
 ## Transfer guidance by $r=\sigma\sqrt{D}$ formula
 
-Below we provide the guidance for how to quick transfer the well-tuned hyperparameters for diffusion models ( $D\to \infty$ ), such as  $\sigma_{\textrm{max}}$ and $p(\sigma)$ to finite $D$s. We adopt the $r=\sigma\sqrt{D}$ formula in our paper for the alignment (c.f. Section 4). 
+Below we provide the guidance for how to quick transfer the well-tuned hyperparameters for diffusion models ( $D\to \infty$ ), such as  $\sigma_{\textrm{max}}$ and $p(\sigma)$ to finite $D$s. We adopt the $r=\sigma\sqrt{D}$ formula in our paper for the alignment (c.f. Section 4). Please use the following guidance as a prototype.
 
  😀 **Please adjust the augmented dimension $D$ according to your task/dataset/model.**
 
