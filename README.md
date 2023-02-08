@@ -6,7 +6,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 
 
-😇 *Improvement over PFGM / Diffusion Models*
+😇 *Improvement over PFGM / Diffusion Models:*
 
 - No longer require the large batch training target in *PFGM*
 - More general $D \in \mathbb{R}^+$ dimensional augmented variable. PFGM++ subsumes PFGM and Diffusion Models: *PFGM* correspond to $D=1$ and *Diffusion Models* correspond to $D\to \infty$.
