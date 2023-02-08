@@ -12,17 +12,29 @@ We present a general framework termed *PFGM++* that unifies diffusion models and
 
 ## Outline
 
-Our implementation is built upon the [EDM](https://github.com/NVlabs/edm) repo. We first provide an [guidance](#quick-adoptation) on how to quickly transfer the hyperparameter from well-tuned diffusion models ($D\to \infty$) to the PFGM++ family $D\in \mathbb{R}^+$ (We provide more details in *Sec 4 (Transfer hyperparameters to finite $D$s) and Appendix C.2* in our paper) . We highlight our modifications based on their original command lines for [training](#training-new-models-with-stf), [sampling and evaluation](#generate-&-evaluations). 
+Our implementation is built upon the [EDM](https://github.com/NVlabs/edm) repo. We first provide an [guidance](#quick-adoptation) on how to quickly **transfer the hyperparameter from well-tuned diffusion models ($D\to \infty$), such as EDM and DDPM, to the PFGM++ family $D\in \mathbb{R}^+$ **in a task/dataset agnostic way (We provide more details in *Sec 4 (Transfer hyperparameters to finite $D$s) and Appendix C.2* in our paper). We highlight our modifications based on their original command lines for [training](#training-new-models-with-stf), [sampling and evaluation](#generate-&-evaluations). 
 
 We also provide the original instruction for [set-ups](#the-instructions-for-set-ups-from-edm-repo), such as environmental requirements and dataset preparation, from EDM repo.
 
 
 
-## Quick Adoptation
+## Transfer guidance by $r=\sigma\sqrt{D}$ formula
 
-Below we provide the guidance for how to quick apply STF to any existing diffusion models frameworks. The example we used is a simplified version of  [`loss.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
+Below we provide the guidance for how to quick transfer the well-tuned hyperparameters for diffusion models ($D\to \infty$), such as  $\sigma_{\textrm{max}}$ and $p(\sigma)$ to finite $D$s. We adopt the $r=\sigma\sqrt{D}$ formula in our paper for the alignment (c.f. Section 4).
 
-The loss function of the **STF** or the **denoising score-matching** objective for diffusion models:
+Training hyperparameter transfer. The example we used is a simplified version of  [`loss.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
+
+```python
+
+```
+
+Sampling hyperparameter transfer. The example we used is a simplified version of  [`generate.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
+
+```python
+
+```
+
+Please refer to **Appendix C.2** for detailed hyperparameter transfer procedures from **EDM** and **DDPM​**.
 
 
 
@@ -48,7 +60,7 @@ The results of each training run are saved to a newly created directory  `traini
 
 For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=datasets/ffhq-64x64.zip`
 
-**Sidenote:** The original EDM repo provide more dataset: FFHQ, AFHQv2, ImageNet-64. We did not test the performance of *STF* on these datasets due to limited computational resources. However, we believe that the *STF* technique can consistently improve the model across datasets. Please let us know if you have those resutls 😀
+**Sidenote:** The original EDM repo provide more dataset: FFHQ, AFHQv2, ImageNet-64. We did not test the performance of *PFGM++* on these datasets due to limited computational resources. However, we believe that the **some finte $D$s (sweet spots) would beat the diffusion models (the $D\to\infty$ case)**. Please let us know if you have those resutls 😀
 
 
 
