@@ -5,13 +5,20 @@ torchrun --standalone --nproc_per_node=8 train.py \
   --outdir=training-runs --name 2048_stf_1_align_0 \
   --data=datasets/cifar10-32x32.zip --cond=0 --arch=ncsnpp \
   --pfgmv2=1 --batch 512 --align=0 --aug_dim 2048 --stf=1 --rbatch 1024
+  
+torchrun --standalone --nproc_per_node=8 generate.py \
+  --seeds=0-49999 --outdir=./training-runs/2048_stf_1_align_0 \
+  --ckpt 100000 --pfgmv2=1 --align=0 --aug_dim=2048 --use_pickle=1
 
 # 2048 condition
 torchrun --standalone --nproc_per_node=8 train.py \
   --outdir=training-runs --name 2048_cond_1 \
   --data=datasets/cifar10-32x32.zip --cond=1 --arch=ncsnpp \
   --pfgmv2=1 --batch 512 --align=0 --aug_dim 2048
-
+  
+torchrun --standalone --nproc_per_node=8 generate.py \
+  --seeds=0-49999 --outdir=./training-runs/2048_cond_1 \
+  --ckpt 100000 --pfgmv2=1 --align=0 --aug_dim=2048 --use_pickle=1
 
 
 # ===== training =======
