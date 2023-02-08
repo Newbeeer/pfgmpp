@@ -18,7 +18,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 
 
-*Abstract:* We present a general framework termed *PFGM++* that unifies diffusion models and Poisson Flow Generative Models (PFGM). These models realize generative trajectories for $N$ dimensional data by embedding paths in $N{+}D$ dimensional space while still controlling the progression with a simple scalar norm of the $D$ additional variables. The new models reduce to **PFGM when $D{=}1$** and to **diffusion models when $D{\to}\infty$.** The flexibility of choosing $D$ allows us to trade off robustness against rigidity as increasing $D$ results in more concentrated coupling between the data and the additional variable norms. We **dispense with the biased large batch field targets used in PFGM and instead provide an unbiased perturbation-based objective** similar to diffusion models. To explore different choices of $D$, we provide a direct alignment method for transferring well-tuned hyperparameters from diffusion models ($D{\to} \infty$) to any finite $D$ values. Our experiments show that models with **finite $D$ can be superior to previous state-of-the-art diffusion models** on CIFAR-10/FFHQ $64{\times}64$ datasets, with FID scores of $1.91/2.43$ when $D{=}2048/128$. In addition, we demonstrate that models with smaller $D$ exhibit **improved robustness** against modeling errors.
+*Abstract:* We present a general framework termed *PFGM++* that unifies diffusion models and Poisson Flow Generative Models (PFGM). These models realize generative trajectories for $N$ dimensional data by embedding paths in $N{+}D$ dimensional space while still controlling the progression with a simple scalar norm of the $D$ additional variables. The new models reduce to **PFGM when $D{=}1$** and to **diffusion models when $D{\to}\infty$.** The flexibility of choosing $D$ allows us to trade off robustness against rigidity as increasing $D$ results in more concentrated coupling between the data and the additional variable norms. We **dispense with the biased large batch field targets used in PFGM and instead provide an unbiased perturbation-based objective** similar to diffusion models. To explore different choices of $D$, we provide a direct alignment method for transferring well-tuned hyperparameters from diffusion models ( $D{\to} \infty$ ) to any finite $D$ values. Our experiments show that models with **finite $D$ can be superior to previous state-of-the-art diffusion models** on CIFAR-10/FFHQ $64{\times}64$ datasets, with FID scores of $1.91/2.43$ when $D{=}2048/128$. In addition, we demonstrate that models with smaller $D$ exhibit **improved robustness** against modeling errors.
 
 ![schematic](assets/pfgmpp.png)
 
@@ -28,7 +28,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 ## Outline
 
-Our implementation is built upon the [EDM](https://github.com/NVlabs/edm) repo. We first provide an [guidance](#quick-adoptation) on how to quickly **transfer the hyperparameter from well-tuned diffusion models ($D\to \infty$), such as EDM and DDPM, to the PFGM++ family $D\in \mathbb{R}^+$ ** in a task/dataset agnostic way (We provide more details in *Sec 4 (Transfer hyperparameters to finite $D$s) and Appendix C.2* in our paper). We highlight our modifications based on their original command lines for [training](#training-new-models-with-stf), [sampling and evaluation](#generate-&-evaluations). 
+Our implementation is built upon the [EDM](https://github.com/NVlabs/edm) repo. We first provide an [guidance](#quick-adoptation) on how to quickly **transfer the hyperparameter from well-tuned diffusion models ( $D\to \infty$ ), such as EDM and DDPM, to the PFGM++ family $D\in \mathbb{R}^+$ ** in a task/dataset agnostic way (We provide more details in *Sec 4 (Transfer hyperparameters to finite $D$s) and Appendix C.2* in our paper). We highlight our modifications based on their original command lines for [training](#training-new-models-with-stf), [sampling and evaluation](#generate-&-evaluations). 
 
 We also provide the original instruction for [set-ups](#the-instructions-for-set-ups-from-edm-repo), such as environmental requirements and dataset preparation, from EDM repo.
 
@@ -36,7 +36,7 @@ We also provide the original instruction for [set-ups](#the-instructions-for-set
 
 ## Transfer guidance by $r=\sigma\sqrt{D}$ formula
 
-Below we provide the guidance for how to quick transfer the well-tuned hyperparameters for diffusion models ($D\to \infty$), such as  $\sigma_{\textrm{max}}$ and $p(\sigma)$ to finite $D$s. We adopt the $r=\sigma\sqrt{D}$ formula in our paper for the alignment (c.f. Section 4).
+Below we provide the guidance for how to quick transfer the well-tuned hyperparameters for diffusion models ( $D\to \infty$ ), such as  $\sigma_{\textrm{max}}$ and $p(\sigma)$ to finite $D$s. We adopt the $r=\sigma\sqrt{D}$ formula in our paper for the alignment (c.f. Section 4).
 
 Training hyperparameter transfer. The example we used is a simplified version of  [`loss.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
 
