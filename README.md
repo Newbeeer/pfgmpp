@@ -56,15 +56,15 @@ def train(y, N, D, pfgmpp):
   '''
   
   if not pfgmpp:
-    ### === Diffusion Model === ###
+    ###################### === Diffusion Model === ######################
     rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
     sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
     n = torch.randn_like(y) * sigma
     D_yn = net(y + n, sigma)
     loss = (D_yn - y) ** 2
-    ### === Diffusion Model === ###
+    ###################### === Diffusion Model === ######################
   else: 
-    ######## === PFGM++ === #######
+    ###################### === PFGM++ === ######################
     rnd_normal = torch.randn(images.shape[0], device=images.device)
     sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
     r = sigma.double() * np.sqrt(self.D).astype(np.float64) # r=sigma\sqrt{D} formula
@@ -88,7 +88,7 @@ def train(y, N, D, pfgmpp):
     n = perturbation_x.view_as(y)
     D_yn = net(y + n, sigma)
     loss = (D_yn - y) ** 2
-    ######## === PFGM++ === #######
+    ###################### === PFGM++ === ######################
 ```
 
 *Sampling hyperparameter transfer*. The example we provide is a simplified version of  [`generate.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo. As shown in the figure below, the only modification is the prior sampling process. Hence we only include the comparision of prior sampling for diffusion models / PFGM++ in the code snippet.
@@ -104,11 +104,11 @@ def generate(sigma_max, N, D, pfgmpp)
   pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
   '''
   if not pfgmpp:
-    ### === Diffusion Model === ###
+    ###################### === Diffusion Model === ######################
     x = torch.randn_like(data_size) * sigma_max
-    ### === Diffusion Model === ###
+    ###################### === Diffusion Model === ######################
   else:
-    ######## === PFGM++ === #######
+    ###################### === PFGM++ === ######################
     # Sampling form inverse-beta distribution
     r = sigma_max * np.sqrt(self.D) # r=sigma\sqrt{D} formula
     samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
@@ -122,7 +122,7 @@ def generate(sigma_max, N, D, pfgmpp)
     unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
     # Construct the perturbation 
     x = (unit_gaussian * samples_norm).float().view(data_size)
-    ######## === PFGM++ === #######
+    ###################### === PFGM++ === #######################
     
     
   ########################################################
