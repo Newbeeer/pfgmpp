@@ -1,36 +1,36 @@
-## Elucidating the Design Space of Diffusion-Based Generative Models (EDM)<br>
+# PFGM++: Unlocking the Potential of Physics-Inspired Generative Models
 
-# TODO List
+Pytorch implementation of the paper PFGM++: Unlocking the Potential of Physics-Inspired Generative Models
 
-
-|                             | Status  | Results                                                      |
-| --------------------------- | ------- | ------------------------------------------------------------ |
-| **CIFAR-10 32x32**          |         |                                                              |
-| D=128, arch=ddpmpp          | Ongoing | [link](https://www.dropbox.com/s/qysli101rer0fw5/res_ddpm_128_8GPU.txt?dl=0) |
-| D=2048, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/za6p5ndj2k4segf/res_ddpm_2048_8GPU.txt?dl=0) |
-| D=2048, arch=ncsnpp         |         | [link](https://www.dropbox.com/s/jnwh3yjbl4gmwfx/result_8GPU.txt?dl=0)|
-| D=2048, arch=ncsnpp, stf=1  |         | [link](https://www.dropbox.com/s/t1u9bz8ae8yzy3q/res_stf_1.txt?dl=0)|
-| D=2048, arch=ncsnpp, cond=1 |         | [link](https://www.dropbox.com/s/a5ysp4sw5yxfnas/res_cond_1.txt?dl=0)|
-|                             |         |                                                              |
-| **FFHQ 64x64**              |         |                                                              |
-| D=128, arch=ddpmpp          | Ongoing | [link](https://www.dropbox.com/s/9uyqu4hj6lefrzo/res_ffhq_ddpmpp_128.txt?dl=0) |
-| D =512, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/3rxz8cg4t14cfdd/res_ffhq_ddpmpp_512.txt?dl=0) |
-| D=2048, arch=ddpmpp         | Ongoing | [link](https://www.dropbox.com/s/lxughy04zytu3xs/res_ffhq_ddpmpp_2048.txt?dl=0) |
-|                             |         |                                                              |
-|                             |         |                                                              |
-FFHQ, D=128, model [link](https://www.dropbox.com/s/kvwtb5czv1v33kw/training-state-193177.pt?dl=0)
-
-FFHQ, edm, model [link](https://www.dropbox.com/s/htcgx7oq3z2y9vf/training-state-195686.pkl?dl=0)
+by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/#pub), [Yonglong Tian](https://people.csail.mit.edu/yonglong/), Shangyuan Tong [Max Tegmark](https://space.mit.edu/home/tegmark/), [Tommi S. Jaakkola](http://people.csail.mit.edu/tommi/)
 
 
 
-Our implementation is heavily rely on the [EDM](https://github.com/NVlabs/edm) repo. Below we list our modification based on their original command lines for training, sampling and evaluation
+We present a general framework termed *PFGM++* that unifies diffusion models and Poisson Flow Generative Models (PFGM). These models realize generative trajectories for $N$ dimensional data by embedding paths in $N{+}D$ dimensional space while still controlling the progression with a simple scalar norm of the $D$ additional variables. The new models reduce to **PFGM when $D{=}1$** and to **diffusion models when $D{\to}\infty$.** The flexibility of choosing $D$ allows us to trade off robustness against rigidity as increasing $D$ results in more concentrated coupling between the data and the additional variable norms. We dispense with the biased large batch field targets used in PFGM and instead provide an unbiased perturbation-based objective similar to diffusion models. To explore different choices of $D$, we provide a direct alignment method for transferring well-tuned hyperparameters from diffusion models ($D{\to} \infty$) to any finite $D$ values. Our experiments show that models with **finite $D$ can be superior to previous state-of-the-art diffusion models** on CIFAR-10/FFHQ $64{\times}64$ datasets, with FID scores of $1.91/2.43$ when $D{=}2048/128$. In addition, we demonstrate that models with smaller $D$ exhibit **improved robustness** against modeling errors.
 
-## Training new models
+![schematic](assets/pfgmpp.pdf)
+
+## Outline
+
+Our implementation is built upon the [EDM](https://github.com/NVlabs/edm) repo. We first provide an [guidance](#quick-adoptation) on how to quickly transfer the hyperparameter from well-tuned diffusion models ($D\to \infty$) to the PFGM++ family $D\in \mathbb{R}^+$ (We provide more details in *Sec 4 (Transfer hyperparameters to finite $D$s) and Appendix C.2* in our paper) . We highlight our modifications based on their original command lines for [training](#training-new-models-with-stf), [sampling and evaluation](#generate-&-evaluations). 
+
+We also provide the original instruction for [set-ups](#the-instructions-for-set-ups-from-edm-repo), such as environmental requirements and dataset preparation, from EDM repo.
+
+
+
+## Quick Adoptation
+
+Below we provide the guidance for how to quick apply STF to any existing diffusion models frameworks. The example we used is a simplified version of  [`loss.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
+
+The loss function of the **STF** or the **denoising score-matching** objective for diffusion models:
+
+
+
+## Training PFGM++
 
 You can train new models using `train.py`. For example:
 
-```.bash
+```sh
 torchrun --standalone --nproc_per_node=8 train.py --outdir=training-runs --name exp_name \
 --data=datasets/cifar10-32x32.zip --cond=0 --arch=arch \
 --pfgmpp=1 --batch 512 \
@@ -39,8 +39,7 @@ torchrun --standalone --nproc_per_node=8 train.py --outdir=training-runs --name 
 exp_name: name of experiments
 aug_dim: D (additional dimensions)  
 arch: model architectures. options: ncsnpp | ddpmpp
-
---pfgmpp flag: use PFGM++ framework
+pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
 ```
 
 The above example uses the default batch size of 512 images (controlled by `--batch`) that is divided evenly among 8 GPUs (controlled by `--nproc_per_node`) to yield 64 images per GPU. Training large models may run out of GPU memory; the best way to avoid this is to limit the per-GPU batch size, e.g., `--batch-gpu=32`. This employs gradient accumulation to yield the same results as using full per-GPU batches. See [`python train.py --help`](./docs/train-help.txt) for the full list of options.
@@ -48,6 +47,14 @@ The above example uses the default batch size of 512 images (controlled by `--ba
 The results of each training run are saved to a newly created directory  `training-runs/exp_name` . The training loop exports network snapshots `training-state-*.pt`) at regular intervals (controlled by  `--dump`). The network snapshots can be used to generate images with `generate.py`, and the training states can be used to resume the training later on (`--resume`). Other useful information is recorded in `log.txt` and `stats.jsonl`. To monitor training convergence, we recommend looking at the training loss (`"Loss/loss"` in `stats.jsonl`) as well as periodically evaluating FID for `training-state-*.pt` using `generate.py` and `fid.py`.
 
 For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=datasets/ffhq-64x64.zip`
+
+**Sidenote:** The original EDM repo provide more dataset: FFHQ, AFHQv2, ImageNet-64. We did not test the performance of *STF* on these datasets due to limited computational resources. However, we believe that the *STF* technique can consistently improve the model across datasets. Please let us know if you have those resutls 😀
+
+
+
+TODO: All checkpoints are provided in this [Google drive folder](https://drive.google.com/drive/folders/1bTtRCkl31VP6KC71l5kvXCLE4NT5kVtu?usp=share_link).
+
+
 
 ## Generate & Evaluations
 
@@ -61,14 +68,13 @@ For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=dat
   exp_name: name of experiments
   aug_dim: D (additional dimensions)  
   arch: model architectures. options: ncsnpp | ddpmpp
-  
-  --pfgmpp flag: use PFGM++ framework
+  pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
   ```
-
-  Note that the numerical value of FID varies across different random seeds and is highly sensitive to the number of images. By default, `fid.py` will always use 50,000 generated images; providing fewer images will result in an error, whereas providing more will use a random subset. To reduce the effect of random variation, we recommend repeating the calculation multiple times with different seeds, e.g., `--seeds=0-49999`, `--seeds=50000-99999`, and `--seeds=100000-149999`. In the EDM paper, they calculated each FID three times and reported the minimum.
-
-  For the FID versus controlled $\alpha$/NFE/quantization, please use `generate_alpha.py/generate_steps.py/generate_quant.py` for generation.
-
+  
+Note that the numerical value of FID varies across different random seeds and is highly sensitive to the number of images. By default, `fid.py` will always use 50,000 generated images; providing fewer images will result in an error, whereas providing more will use a random subset. To reduce the effect of random variation, we recommend repeating the calculation multiple times with different seeds, e.g., `--seeds=0-49999`, `--seeds=50000-99999`, and `--seeds=100000-149999`. In the EDM paper, they calculated each FID three times and reported the minimum.
+  
+For the FID versus controlled $\alpha$/NFE/quantization, please use `generate_alpha.py/generate_steps.py/generate_quant.py` for generation.
+  
 - FID evaluation
 
   ```zsh
@@ -81,11 +87,9 @@ For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=dat
 
 
 
-# Below are some of the original instructions from the [EDM](https://github.com/NVlabs/edm) repo
+## The instructions for set-ups from EDM repo
 
-
-
-## Requirements
+### Requirements
 
 - Linux and Windows are supported, but we recommend Linux for performance and compatibility reasons.
 - 1+ high-end NVIDIA GPU for sampling and 8+ GPUs for training. We have done all testing and development using V100 and A100 GPUs.
@@ -98,7 +102,7 @@ For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=dat
   - Ensure you have correctly installed the [NVIDIA container runtime](https://docs.docker.com/config/containers/resource_constraints/#gpu).
   - Use the [provided Dockerfile](https://github.com/NVlabs/edm/blob/main/Dockerfile) to build an image with the required library dependencies.
 
-## Preparing datasets
+### Preparing datasets
 
 Datasets are stored in the same format as in [StyleGAN](https://github.com/NVlabs/stylegan3): uncompressed ZIP archives containing uncompressed PNG files and a metadata file `dataset.json` for labels. Custom datasets can be created from a folder containing images; see [`python dataset_tool.py --help`](./docs/dataset-tool-help.txt) for more information.
 
@@ -133,6 +137,4 @@ python dataset_tool.py --source=downloads/imagenet/ILSVRC/Data/CLS-LOC/train \
     --dest=datasets/imagenet-64x64.zip --resolution=64x64 --transform=center-crop
 python fid.py ref --data=datasets/imagenet-64x64.zip --dest=fid-refs/imagenet-64x64.npz
 ```
-
-
 
