@@ -2,7 +2,7 @@
 
 Pytorch implementation of the paper PFGM++: Unlocking the Potential of Physics-Inspired Generative Models
 
-by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/#pub), [Yonglong Tian](https://people.csail.mit.edu/yonglong/), Shangyuan Tong [Max Tegmark](https://space.mit.edu/home/tegmark/), [Tommi S. Jaakkola](http://people.csail.mit.edu/tommi/)
+by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/#pub), [Yonglong Tian](https://people.csail.mit.edu/yonglong/), Shangyuan Tong, [Max Tegmark](https://space.mit.edu/home/tegmark/), [Tommi S. Jaakkola](http://people.csail.mit.edu/tommi/)
 
 
 
