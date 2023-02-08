@@ -8,7 +8,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 😇 *Improvement over PFGM / Diffusion Models:*
 
-- No longer require the large batch training target in *PFGM*
+- No longer require the large batch training target in *PFGM*, thus enable *flexible condition generation!*
 - More general $D \in \mathbb{R}^+$ dimensional augmented variable. PFGM++ subsumes PFGM and Diffusion Models: *PFGM* correspond to $D=1$ and *Diffusion Models* correspond to $D\to \infty$.
 - Existence of sweet spot $D^*$ in the middle!
 - Smaller $D$ more robust than *Diffusion Models* ( $D\to \infty$ )
