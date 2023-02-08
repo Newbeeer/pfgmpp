@@ -162,7 +162,7 @@ For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=dat
 
 
 
-TODO: All checkpoints are provided in this [Google drive folder](https://drive.google.com/drive/folders/1bTtRCkl31VP6KC71l5kvXCLE4NT5kVtu?usp=share_link).
+TODO: All checkpoints are provided in this [Google drive folder]().
 
 
 
