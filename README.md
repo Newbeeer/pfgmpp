@@ -123,6 +123,13 @@ def generate(sigma_max, N, D, pfgmpp)
     # Construct the perturbation 
     x = (unit_gaussian * samples_norm).float().view(data_size)
     ######## === PFGM++ === #######
+    
+    
+  ########################################################
+    
+  # Heun's 2nd order method (aka improved Euler method)  #
+    
+  ########################################################
 ```
 
 Please refer to **Appendix C.2** for detailed hyperparameter transfer procedures from **EDM** and **DDPM​**.
