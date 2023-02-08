@@ -8,7 +8,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 We present a general framework termed *PFGM++* that unifies diffusion models and Poisson Flow Generative Models (PFGM). These models realize generative trajectories for $N$ dimensional data by embedding paths in $N{+}D$ dimensional space while still controlling the progression with a simple scalar norm of the $D$ additional variables. The new models reduce to **PFGM when $D{=}1$** and to **diffusion models when $D{\to}\infty$.** The flexibility of choosing $D$ allows us to trade off robustness against rigidity as increasing $D$ results in more concentrated coupling between the data and the additional variable norms. We dispense with the biased large batch field targets used in PFGM and instead provide an unbiased perturbation-based objective similar to diffusion models. To explore different choices of $D$, we provide a direct alignment method for transferring well-tuned hyperparameters from diffusion models ($D{\to} \infty$) to any finite $D$ values. Our experiments show that models with **finite $D$ can be superior to previous state-of-the-art diffusion models** on CIFAR-10/FFHQ $64{\times}64$ datasets, with FID scores of $1.91/2.43$ when $D{=}2048/128$. In addition, we demonstrate that models with smaller $D$ exhibit **improved robustness** against modeling errors.
 
-![schematic](assets/pfgmpp.pdf)
+![schematic](assets/pfgmpp.png)
 
 ## Outline
 
