@@ -109,7 +109,7 @@ x = torch.randn_like(data_size) * sigma_max
 # Sampling form inverse-beta distribution
 r = sigma_max * np.sqrt(self.D) # r=sigma\sqrt{D} formula
 samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
-                              size=images.shape[0]).astype(np.double)
+                              size=data_size).astype(np.double)
 inverse_beta = samples_norm / (1 - samples_norm +1e-8)
 inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
 # Sampling from p_r(R) by change-of-variable (c.f. Appendix B)
@@ -118,7 +118,7 @@ samples_norm = (r * torch.sqrt(inverse_beta +1e-8)).view(len(samples_norm), -1)
 gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
 unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
 # Construct the perturbation 
-x = (unit_gaussian * samples_norm).float()
+x = (unit_gaussian * samples_norm).float().view(data_size)
 ######## === PFGM++ === #######
 ```
 
