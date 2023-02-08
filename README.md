@@ -36,18 +36,90 @@ We also provide the original instruction for [set-ups](#the-instructions-for-set
 
 ## Transfer guidance by $r=\sigma\sqrt{D}$ formula
 
-Below we provide the guidance for how to quick transfer the well-tuned hyperparameters for diffusion models ( $D\to \infty$ ), such as  $\sigma_{\textrm{max}}$ and $p(\sigma)$ to finite $D$s. We adopt the $r=\sigma\sqrt{D}$ formula in our paper for the alignment (c.f. Section 4).
+Below we provide the guidance for how to quick transfer the well-tuned hyperparameters for diffusion models ( $D\to \infty$ ), such as  $\sigma_{\textrm{max}}$ and $p(\sigma)$ to finite $D$s. We adopt the $r=\sigma\sqrt{D}$ formula in our paper for the alignment (c.f. Section 4). 
 
-Training hyperparameter transfer. The example we used is a simplified version of  [`loss.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
+ 😀 **Please adjust the augmented dimension $D$ according to your task/dataset/model. **
+
+
+
+*Training hyperparameter transfer*. The example we provide is a simplified version of  [`loss.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
+
+![schematic](assets/train.png)
 
 ```python
+'''
+y: mini-batch clean images
+N: data dimension
+D: augmented dimension
+'''
 
+### === Diffusion Model === ###
+rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
+sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
+n = torch.randn_like(y) * sigma
+D_yn = net(y + n, sigma)
+loss = (D_yn - y) ** 2
+### === Diffusion Model === ###
+
+
+######## === PFGM++ === #######
+rnd_normal = torch.randn(images.shape[0], device=images.device)
+sigma = (rnd_normal * self.P_std + self.P_mean).exp() # sample sigma from p(\sigma)
+r = sigma.double() * np.sqrt(self.D).astype(np.float64) # r=sigma\sqrt{D} formula
+
+# = sample noise from perturbation kernel p_r = #
+# Sampling form inverse-beta distribution
+samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
+                              size=images.shape[0]).astype(np.double)
+inverse_beta = samples_norm / (1 - samples_norm +1e-8)
+inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
+# Sampling from p_r(R) by change-of-variable (c.f. Appendix B)
+samples_norm = (r * torch.sqrt(inverse_beta +1e-8)).view(len(samples_norm), -1)
+# Uniformly sample the angle component
+gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
+unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+# Construct the perturbation 
+perturbation_x = (unit_gaussian * samples_norm).float()
+# = sample noise from perturbation kernel p_r = #
+
+sigma = sigma.reshape((len(sigma), 1, 1, 1))
+n = perturbation_x.view_as(y)
+D_yn = net(y + n, sigma)
+loss = (D_yn - y) ** 2
+######## === PFGM++ === #######
 ```
 
-Sampling hyperparameter transfer. The example we used is a simplified version of  [`generate.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo.
+*Sampling hyperparameter transfer*. The example we provide is a simplified version of  [`generate.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo. As shown in the figure below, the only modification is the prior sampling process. Hence we only include the comparision of prior sampling for diffusion models / PFGM++ in the code snippet.
+
+![schematic](assets/sample.png)
 
 ```python
+'''
+sigma_max: starting condition for diffusion models
+N: data dimension
+D: augmented dimension
+'''
 
+### === Diffusion Model === ###
+x = torch.randn_like(data_size) * sigma_max
+### === Diffusion Model === ###
+
+
+######## === PFGM++ === #######
+# Sampling form inverse-beta distribution
+r = sigma_max * np.sqrt(self.D) # r=sigma\sqrt{D} formula
+samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
+                              size=images.shape[0]).astype(np.double)
+inverse_beta = samples_norm / (1 - samples_norm +1e-8)
+inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
+# Sampling from p_r(R) by change-of-variable (c.f. Appendix B)
+samples_norm = (r * torch.sqrt(inverse_beta +1e-8)).view(len(samples_norm), -1)
+# Uniformly sample the angle component
+gaussian = torch.randn(images.shape[0], self.N).to(samples_norm.device)
+unit_gaussian = gaussian / torch.norm(gaussian, p=2, dim=1, keepdim=True)
+# Construct the perturbation 
+x = (unit_gaussian * samples_norm).float()
+######## === PFGM++ === #######
 ```
 
 Please refer to **Appendix C.2** for detailed hyperparameter transfer procedures from **EDM** and **DDPM​**.
@@ -119,10 +191,6 @@ For the FID versus controlled $\alpha$/NFE/quantization, please use `generate_al
 
 ### Requirements
 
-- Linux and Windows are supported, but we recommend Linux for performance and compatibility reasons.
-- 1+ high-end NVIDIA GPU for sampling and 8+ GPUs for training. We have done all testing and development using V100 and A100 GPUs.
-
-- 64-bit Python 3.8 and PyTorch 1.12.0 (or later). See [https://pytorch.org](https://pytorch.org/) for PyTorch install instructions.
 - Python libraries: See `environment.yml`for exact library dependencies. You can use the following commands with Miniconda3 to create and activate your Python environment:
   - `conda env create -f environment.yml -n edm`
   - `conda activate edm`
