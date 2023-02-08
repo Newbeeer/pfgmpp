@@ -28,7 +28,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 ## Outline
 
-Our implementation is built upon the [EDM](https://github.com/NVlabs/edm) repo. We first provide an [guidance](#quick-adoptation) on how to quickly **transfer the hyperparameter from well-tuned diffusion models ($D\to \infty$), such as EDM and DDPM, to the PFGM++ family $D\in \mathbb{R}^+$**in a task/dataset agnostic way (We provide more details in *Sec 4 (Transfer hyperparameters to finite $D$s) and Appendix C.2* in our paper). We highlight our modifications based on their original command lines for [training](#training-new-models-with-stf), [sampling and evaluation](#generate-&-evaluations). 
+Our implementation is built upon the [EDM](https://github.com/NVlabs/edm) repo. We first provide an [guidance](#quick-adoptation) on how to quickly transfer the hyperparameter from well-tuned diffusion models ($D\to \infty$), such as EDM and DDPM, to the PFGM++ family $D\in \mathbb{R}^+$\in a task/dataset agnostic way (We provide more details in *Sec 4 (Transfer hyperparameters to finite $D$s) and Appendix C.2* in our paper). We highlight our modifications based on their original command lines for [training](#training-new-models-with-stf), [sampling and evaluation](#generate-&-evaluations). 
 
 We also provide the original instruction for [set-ups](#the-instructions-for-set-ups-from-edm-repo), such as environmental requirements and dataset preparation, from EDM repo.
 
