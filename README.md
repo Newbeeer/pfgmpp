@@ -48,12 +48,12 @@ Below we provide the guidance for how to quick transfer the well-tuned hyperpara
 
 ```python
 def train(y, N, D, pfgmpp):
-	'''
-	y: mini-batch clean images
-	N: data dimension
-	D: augmented dimension
-	pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
-	'''
+  '''
+  y: mini-batch clean images
+  N: data dimension
+  D: augmented dimension
+  pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
+  '''
   
 	if not pfgmpp:
 		### === Diffusion Model === ###
