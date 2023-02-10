@@ -165,20 +165,6 @@ For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=dat
 
 
 
-TODO: All checkpoints are provided in this [Google drive folder](https://drive.google.com/drive/folders/1f0bhz5g_Wlwp8hhLLtZRLZOXhQuNd-R1?usp=share_link).
-
-| Model                             | Checkpoint path                                              | $D$  | FID  |                      Options                       |
-| --------------------------------- | :----------------------------------------------------------- | ---- | :--: | :------------------------------------------------: |
-| cifar10-ncsnpp-D-2048             | [`pfgmpp/cifar10_ncsnpp_D_2048/`](https://drive.google.com/drive/folders/1sZ7vh7o8kuXfFjK8ROWXxtEZi8Srewgo?usp=share_link) | 2048 | 1.91 | `--cond=0 --arch=ncsnpp --pfgmpp=1 --aug_dim=2048` |
-| cifar10-ncsnpp-D-2048-conditional | [`pfgmpp/cifar10_ncsnpp_D_2048_conditional/`](https://drive.google.com/drive/folders/1IADJcuoUb2wc-Dzg42-F8RjgKVSZE-Jd?usp=share_link) | 2048 | 1.74 | `--cond=1 --arch=ncsnpp --pfgmpp=1 --aug_dim=2048` |
-| cifar10-ncsnpp-D-128              |                                                              | 128  | 1.92 | `--cond=0 --arch=ncsnpp --pfgmpp=1 --aug_dim=128`  |
-|                                   |                                                              |      |      |                                                    |
-|                                   |                                                              |      |      |                                                    |
-
-
-
-
-
 ## Generate & Evaluations
 
 - Generate 50k samples:
@@ -209,6 +195,19 @@ For the FID versus controlled $\alpha$/NFE/quantization, please use `generate_al
   ```
 
   
+
+## Checkpoints
+
+All checkpoints are provided in this [Google drive folder](https://drive.google.com/drive/folders/1f0bhz5g_Wlwp8hhLLtZRLZOXhQuNd-R1?usp=share_link). We borrow the dataset specific hyperparameters, e.g. batch size, learning rate, etc,  from [EDM](https://github.com/NVlabs/edm) repo. Please refer to that repo for hyperparameters if you wish to try more datasets, like ImageNet 64. Some of the checkpoints are in `.pkl` format (due to a historical reason), please the `--use_pickle=1` flag when using the `generate.py` for image generation. 
+
+| Model                             | Checkpoint path                                              | $D$      | FID  |                           Options                            |
+| --------------------------------- | :----------------------------------------------------------- | -------- | :--: | :----------------------------------------------------------: |
+| cifar10-ncsnpp-D-128              | [`pfgmpp/cifar10_ncsnpp_D_128/`](https://drive.google.com/drive/folders/1W_fS4zwVGQ38I0tzgDZ30r54mOqzcgTP?usp=share_link) | 128      | 1.92 |      `--cond=0 --arch=ncsnpp --pfgmpp=1 --aug_dim=128`       |
+| cifar10-ncsnpp-D-2048             | [`pfgmpp/cifar10_ncsnpp_D_2048/`](https://drive.google.com/drive/folders/1sZ7vh7o8kuXfFjK8ROWXxtEZi8Srewgo?usp=share_link) | 2048     | 1.91 |      `--cond=0 --arch=ncsnpp --pfgmpp=1 --aug_dim=2048`      |
+| cifar10-ncsnpp-D-2048-conditional | [`pfgmpp/cifar10_ncsnpp_D_2048_conditional/`](https://drive.google.com/drive/folders/1IADJcuoUb2wc-Dzg42-F8RjgKVSZE-Jd?usp=share_link) | 2048     | 1.74 |      `--cond=1 --arch=ncsnpp --pfgmpp=1 --aug_dim=2048`      |
+| cifar10-ncsnpp-D-inf (EDM)        | [`pfgmpp/cifar10_ncsnpp_D_inf/`](https://drive.google.com/drive/folders/1vDeFtbaz3bBKJIJnZAk7JVrO8GvbFJh5?usp=share_link) | $\infty$ | 1.98 |                   `--cond=0 --arch=ncsnpp`                   |
+| ffhq-ddpm-D-128                   | [`pfgmpp/ffhq_ddpm_D_128/`](https://drive.google.com/drive/folders/1oEySn3FndR_pseFLEN16Dygrc_SFUMuf?usp=share_link) | 128      | 2.43 | `--cond=0 --arch=ddpmpp --batch=256 --cres=1,2,2,2 --lr=2e-4 --dropout=0.05 --augment=0.15 --pfgmpp=1 --aug_dim=128` |
+| ffhq-ddpm-D-inf (EDM)             | [`pfgmpp/ffhq_ddpm_D_inf/`](https://drive.google.com/drive/folders/1gkluJFwIOoFOiVt7fofUzSpesgBYZiFA?usp=share_link) | $\infty$ | 2.53 | `--cond=0 --arch=ddpmpp --batch=256 --cres=1,2,2,2 --lr=2e-4 --dropout=0.05 --augment=0.15` |
 
 
 
