@@ -283,7 +283,7 @@ def parse_int_list(s):
 @click.option('--pfgmpp',          help='Train PFGM++', metavar='BOOL',              type=bool, default=False, show_default=True)
 @click.option('--aug_dim',             help='additional dimension', metavar='INT',                            type=click.IntRange(min=2), default=128, show_default=True)
 
-def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgmpp, aug_dim, edm, device=torch.device('cuda'), **sampler_kwargs):
+def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save_images, pfgmpp, aug_dim, edm, use_pickle, device=torch.device('cuda'), **sampler_kwargs):
     """Generate random images using the techniques described in the paper
     "Elucidating the Design Space of Diffusion-Based Generative Models".
 
@@ -295,10 +295,11 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
 
-    if not edm:
-        stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
+    if use_pickle:
+        stats = glob.glob(os.path.join(outdir, "training-state-*.pkl"))
     else:
-        stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
+        stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
+
     done_list = []
 
     for ckpt_dir in stats:
@@ -308,13 +309,10 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
         if dist.get_rank() != 0:
             torch.distributed.barrier()
 
-        # with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
-        #     net = pickle.load(f)['ema'].to(device)
-
-        if edm:
+        if use_pickle:
             with dnnlib.util.open_url(ckpt_dir, verbose=(dist.get_rank() == 0)) as f:
                 net = pickle.load(f)['ema'].to(device)
-            ckpt_num = 0
+                ckpt_num = int(ckpt_dir[-10:-4])
         else:
             data = torch.load(ckpt_dir, map_location=torch.device('cpu'))
             net = data['ema'].eval().to(device)

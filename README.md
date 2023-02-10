@@ -176,12 +176,13 @@ TODO: All checkpoints are provided in this [Google drive folder]().
   ```zsh
   torchrun --standalone --nproc_per_node=8 generate.py \
   --seeds=0-49999 --outdir=./training-runs/exp_name \
-  --pfgmpp=1 --aug_dim=aug_dim
+  --pfgmpp=1 --aug_dim=aug_dim (--use_pickle=1)
      
   exp_name: name of experiments
   aug_dim: D (additional dimensions)  
   arch: model architectures. options: ncsnpp | ddpmpp
-  pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
+  pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1. (default:0)
+  use_pickle: when the checkpoints are stored in pickle format (.pkl). (default:0)
   ```
   
 
