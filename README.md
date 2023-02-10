@@ -94,7 +94,7 @@ def train(y, N, D, pfgmpp):
     ###################### === PFGM++ === ######################
 ```
 
-*Sampling hyperparameter transfer*. The example we provide is a simplified version of  [`generate.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo. As shown in the figure below, the only modification is the prior sampling process. Hence we only include the comparision of prior sampling for diffusion models / PFGM++ in the code snippet.
+*Sampling hyperparameter transfer*. The example we provide is a simplified version of  [`generate.py`]([https://github.com/Newbeeer/stf/blob/13de0c799a37dd2f83108c1d7295aaf1e993dffe/training/loss.py#L78-L118) in this repo. As shown in the figure below, the only modification is the prior sampling process. Hence we only include the comparison of prior sampling for diffusion models / PFGM++ in the code snippet.
 
 ![schematic](assets/sample.png)
 
@@ -161,7 +161,7 @@ The results of each training run are saved to a newly created directory  `traini
 
 For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=datasets/ffhq-64x64.zip`
 
-**Sidenote:** The original EDM repo provide more dataset: FFHQ, AFHQv2, ImageNet-64. We did not test the performance of *PFGM++* on these datasets due to limited computational resources. However, we believe that the **some finte $D$s (sweet spots) would beat the diffusion models (the $D\to\infty$ case)**. Please let us know if you have those resutls 😀
+**Sidenote:** The original EDM repo provide more dataset: FFHQ, AFHQv2, ImageNet-64. We did not test the performance of *PFGM++* on these datasets due to limited computational resources. However, we believe that the **some finte $D$s (sweet spots) would beat the diffusion models (the $D\to\infty$ case)**. Please let us know if you have those results 😀
 
 
 
