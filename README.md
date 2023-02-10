@@ -165,7 +165,17 @@ For FFHQ dataset, replacing `--data=datasets/cifar10-32x32.zip` with `--data=dat
 
 
 
-TODO: All checkpoints are provided in this [Google drive folder]().
+TODO: All checkpoints are provided in this [Google drive folder](https://drive.google.com/drive/folders/1f0bhz5g_Wlwp8hhLLtZRLZOXhQuNd-R1?usp=share_link).
+
+| Model                             | Checkpoint path                                              | $D$  | FID  |                      Options                       |
+| --------------------------------- | :----------------------------------------------------------- | ---- | :--: | :------------------------------------------------: |
+| cifar10-ncsnpp-D-2048             | [`pfgmpp/cifar10_ncsnpp_D_2048/`](https://drive.google.com/drive/folders/1sZ7vh7o8kuXfFjK8ROWXxtEZi8Srewgo?usp=share_link) | 2048 | 1.91 | `--cond=0 --arch=ncsnpp --pfgmpp=1 --aug_dim=2048` |
+| cifar10-ncsnpp-D-2048-conditional | [`pfgmpp/cifar10_ncsnpp_D_2048_conditional/`](https://drive.google.com/drive/folders/1IADJcuoUb2wc-Dzg42-F8RjgKVSZE-Jd?usp=share_link) | 2048 | 1.74 | `--cond=1 --arch=ncsnpp --pfgmpp=1 --aug_dim=2048` |
+| cifar10-ncsnpp-D-128              |                                                              | 128  | 1.92 | `--cond=0 --arch=ncsnpp --pfgmpp=1 --aug_dim=128`  |
+|                                   |                                                              |      |      |                                                    |
+|                                   |                                                              |      |      |                                                    |
+
+
 
 
 
