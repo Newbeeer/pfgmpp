@@ -6,7 +6,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 
 
-😇 *Improvements over PFGM / Diffusion Models:*
+😇 *Improvements over [PFGM](https://github.com/Newbeeer/Poisson_flow) / Diffusion Models:*
 
 - No longer require the large batch training target in *PFGM*, thus enable **flexible conditional generation and more efficient training!**
 - More general $D \in \mathbb{R}^+$ dimensional augmented variable. **PFGM++ subsumes PFGM and Diffusion Models**: *PFGM* correspond to $D=1$ and *Diffusion Models* correspond to $D\to \infty$.
@@ -21,7 +21,7 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 
 
-*Abstract:* We present a general framework termed *PFGM++* that unifies diffusion models and Poisson Flow Generative Models (PFGM). These models realize generative trajectories for $N$ dimensional data by embedding paths in $N{+}D$ dimensional space while still controlling the progression with a simple scalar norm of the $D$ additional variables. The new models reduce to **PFGM when $D{=}1$** and to **diffusion models when $D{\to}\infty$.** The flexibility of choosing $D$ allows us to trade off robustness against rigidity as increasing $D$ results in more concentrated coupling between the data and the additional variable norms. We **dispense with the biased large batch field targets used in PFGM and instead provide an unbiased perturbation-based objective** similar to diffusion models. To explore different choices of $D$, we provide a direct alignment method for transferring well-tuned hyperparameters from diffusion models ( $D{\to} \infty$ ) to any finite $D$ values. Our experiments show that models with **finite $D$ can be superior to previous state-of-the-art diffusion models** on CIFAR-10/FFHQ $64{\times}64$ datasets, with FID scores of $1.91/2.43$ when $D{=}2048/128$. In addition, we demonstrate that models with smaller $D$ exhibit **improved robustness** against modeling errors.
+*Abstract:* We present a general framework termed *PFGM++* that unifies diffusion models and Poisson Flow Generative Models (PFGM). These models realize generative trajectories for $N$ dimensional data by embedding paths in $N{+}D$ dimensional space while still controlling the progression with a simple scalar norm of the $D$ additional variables. The new models reduce to **PFGM when $D{=}1$** and to **diffusion models when $D{\to}\infty$.** The flexibility of choosing $D$ allows us to trade off robustness against rigidity as increasing $D$ results in more concentrated coupling between the data and the additional variable norms. We **dispense with the biased large batch field targets used in PFGM and instead provide an unbiased perturbation-based objective** similar to diffusion models. To explore different choices of $D$, we provide a direct alignment method for transferring well-tuned hyperparameters from diffusion models ( $D{\to} \infty$ ) to any finite $D$ values. Our experiments show that models with **finite $D$ can be superior to previous state-of-the-art diffusion models** on CIFAR-10/FFHQ $64{\times}64$ datasets, with FID scores of $1.91/2.43$ when $D{=}2048/128$. In class-conditional generation, $D{=}2048$ yields **current state-of-the-art FID of $1.74$ on CIFAR-10**. In addition, we demonstrate that models with smaller $D$ exhibit **improved robustness** against modeling errors.
 
 ![schematic](assets/pfgmpp.png)
 
@@ -184,10 +184,11 @@ TODO: All checkpoints are provided in this [Google drive folder]().
   pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
   ```
   
+
 Note that the numerical value of FID varies across different random seeds and is highly sensitive to the number of images. By default, `fid.py` will always use 50,000 generated images; providing fewer images will result in an error, whereas providing more will use a random subset. To reduce the effect of random variation, we recommend repeating the calculation multiple times with different seeds, e.g., `--seeds=0-49999`, `--seeds=50000-99999`, and `--seeds=100000-149999`. In the EDM paper, they calculated each FID three times and reported the minimum.
-  
+
 For the FID versus controlled $\alpha$/NFE/quantization, please use `generate_alpha.py/generate_steps.py/generate_quant.py` for generation.
-  
+
 - FID evaluation
 
   ```zsh
