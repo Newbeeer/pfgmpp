@@ -166,7 +166,6 @@ def training_loop(
                 loss = loss_fn(net=ddp, images=batch_images, labels=batch_labels, augment_pipe=augment_pipe, stf=stf,
                                pfgmpp=pfgmpp, ref_images=images)
                 training_stats.report('Loss/loss', loss)
-                dist.print0("loss:", loss.mean().item())
                 loss.sum().mul(loss_scaling / (batch_size // dist.get_world_size())).backward()
 
         # Update weights.

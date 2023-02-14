@@ -268,7 +268,6 @@ def parse_int_list(s):
 @click.option('--S_min', 'S_min',          help='Stoch. min noise level', metavar='FLOAT',                          type=click.FloatRange(min=0), default=0, show_default=True)
 @click.option('--S_max', 'S_max',          help='Stoch. max noise level', metavar='FLOAT',                          type=click.FloatRange(min=0), default=0, show_default=True)
 @click.option('--S_noise', 'S_noise',      help='Stoch. noise inflation', metavar='FLOAT',                          type=float, default=0, show_default=True)
-@click.option('--alpha', 'alpha',          help='noise norm', metavar='FLOAT',                          type=click.FloatRange(min=0), default=0, show_default=True)
 @click.option('--ckpt', 'ckpt',      help='begin ckpt', metavar='INT',                          type=int, default=0, show_default=True)
 @click.option('--resume', 'resume',      help='resume ckpt', metavar='INT',                          type=int, default=None, show_default=True)
 @click.option('--end_ckpt', 'end_ckpt',      help='end ckpt', metavar='INT',                          type=int, default=100000000, show_default=True)
@@ -370,15 +369,14 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             have_ablation_kwargs = any(x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
             sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
             with torch.no_grad():
-                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like, pfgmpp=pfgmpp, D=aug_dim,  **sampler_kwargs)
+                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like, pfgmpp=pfgmpp,  **sampler_kwargs)
 
             if save_images:
                 # save a small batch of images
                 images_ = (images + 1) / 2.
                 print("len:", len(images))
                 image_grid = make_grid(images_, nrow=int(np.sqrt(len(images))))
-                alpha = sampler_kwargs['alpha']
-                save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}_{alpha}.png'))
+                save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}.png'))
                 exit(0)
                 break
             # Save images.

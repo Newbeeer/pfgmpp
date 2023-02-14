@@ -207,7 +207,6 @@ def main(**kwargs):
     if opts.name:
         c.run_dir = os.path.join(opts.outdir, opts.name)
 
-    c.opts = opts
     # Print options.
     dist.print0()
     dist.print0('Training options:')
