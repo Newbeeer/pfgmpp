@@ -252,7 +252,6 @@ class SongUNet(torch.nn.Module):
         img_resolution,                     # Image resolution at input/output.
         in_channels,                        # Number of color channels at input.
         out_channels,                       # Number of color channels at output.
-        pfgm                = False,
         label_dim           = 0,            # Number of class labels, 0 = unconditional.
         augment_dim         = 0,            # Augmentation label dimensionality, 0 = no augmentation.
 
@@ -269,7 +268,6 @@ class SongUNet(torch.nn.Module):
         encoder_type        = 'standard',   # Encoder architecture: 'standard' for DDPM++, 'residual' for NCSN++.
         decoder_type        = 'standard',   # Decoder architecture: 'standard' for both DDPM++ and NCSN++.
         resample_filter     = [1,1],        # Resampling filter: [1,1] for DDPM++, [1,3,3,1] for NCSN++.
-        small               = False,        # Small network
     ):
         assert embedding_type in ['fourier', 'positional']
         assert encoder_type in ['standard', 'skip', 'residual']
@@ -277,7 +275,6 @@ class SongUNet(torch.nn.Module):
 
         super().__init__()
 
-        self.pfgm = pfgm
         self.label_dropout = label_dropout
         emb_channels = model_channels * channel_mult_emb
         noise_channels = model_channels * channel_mult_noise
@@ -560,7 +557,6 @@ class VEPrecond(torch.nn.Module):
         sigma_min       = 0.02,         # Minimum supported noise level.
         sigma_max       = 100,          # Maximum supported noise level.
         model_type      = 'SongUNet',   # Class name of the underlying model.
-        pfgm=False,
         pfgmpp=False,
         D=128,
         **model_kwargs,                 # Keyword arguments for the underlying model.
@@ -668,7 +664,6 @@ class EDMPrecond(torch.nn.Module):
         img_resolution,                     # Image resolution.
         img_channels,                       # Number of color channels.
         label_dim       = 0,                # Number of class labels, 0 = unconditional.
-        pfgm = False,
         pfgmpp=False,
         D = 128,
         use_fp16        = False,            # Execute the underlying model at FP16 precision?
@@ -676,7 +671,6 @@ class EDMPrecond(torch.nn.Module):
         sigma_max       = float('inf'),     # Maximum supported noise level.
         sigma_data      = 0.5,              # Expected standard deviation of the training data.
         model_type      = 'DhariwalUNet',   # Class name of the underlying model.
-        small           = False,
         **model_kwargs,                     # Keyword arguments for the underlying model.
     ):
         super().__init__()
@@ -685,53 +679,35 @@ class EDMPrecond(torch.nn.Module):
         self.D = D
         self.N = img_channels * img_resolution * img_resolution
         self.label_dim = label_dim
-        self.pfgm = pfgm
         self.pfgmpp = pfgmpp
         self.use_fp16 = use_fp16
-        self.small = small
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
         ###########
         self.model = globals()[model_type](img_resolution=img_resolution, in_channels=img_channels,
-                                           out_channels=img_channels, pfgm=pfgm, label_dim=label_dim, **model_kwargs)
+                                           out_channels=img_channels, label_dim=label_dim, **model_kwargs)
 
     def forward(self, x, sigma, class_labels=None, D=128, force_fp32=False, sigma_old=None, **model_kwargs):
 
         x = x.to(torch.float32)
-        if self.pfgm:
-            sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1) / np.sqrt(D)
-            class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim],
-                                                                        device=x.device) if class_labels is None else class_labels.to(
-                torch.float32).reshape(-1, self.label_dim)
-            dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
-            # c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
-            # c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
-            c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-            c_noise = sigma.log() / 4
+        sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1)
+        class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim],
+                                                                    device=x.device) if class_labels is None else class_labels.to(torch.float32).reshape(-1, self.label_dim)
+        dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
-            net_x, net_z = self.model((c_in * x).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
-            return net_x, net_z
-        else:
-            sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1)
-            class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim],
-                                                                        device=x.device) if class_labels is None else class_labels.to(
-                torch.float32).reshape(-1, self.label_dim)
-            dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
+        c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
+        c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
+        c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
+        c_noise = sigma.log() / 4
 
-            c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
-            c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
-            c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
-            c_noise = sigma.log() / 4
+        x_in = c_in * x
+        F_x = self.model((x_in).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
 
-            x_in = c_in * x
-            #print("normalized norm:", x_in.view(len(x), -1).norm(p=2, dim=1).mean().item())
-            F_x = self.model((x_in).to(dtype), c_noise.flatten(), class_labels=class_labels, **model_kwargs)
-
-            assert F_x.dtype == dtype
-            D_x = c_skip * x + c_out * F_x.to(torch.float32)
-            return D_x
+        assert F_x.dtype == dtype
+        D_x = c_skip * x + c_out * F_x.to(torch.float32)
+        return D_x
 
     def round_sigma(self, sigma):
         return torch.as_tensor(sigma)

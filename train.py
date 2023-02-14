@@ -121,13 +121,9 @@ def main(**kwargs):
     if opts.arch == 'ddpmpp':
         c.network_kwargs.update(model_type='SongUNet', embedding_type='positional', encoder_type='standard', decoder_type='standard')
         c.network_kwargs.update(channel_mult_noise=1, resample_filter=[1,1], model_channels=128, channel_mult=[2,2,2])
-        if opts.small:
-            c.network_kwargs.update(model_channels=32, num_blocks=2, small=True, attn_resolutions=[0])
     elif opts.arch == 'ncsnpp':
         c.network_kwargs.update(model_type='SongUNet', embedding_type='fourier', encoder_type='residual', decoder_type='standard')
         c.network_kwargs.update(channel_mult_noise=2, resample_filter=[1,3,3,1], model_channels=128, channel_mult=[2,2,2])
-        if opts.small:
-            c.network_kwargs.update(model_channels=64, small=True)
     else:
         assert opts.arch == 'adm'
         c.network_kwargs.update(model_type='DhariwalUNet', model_channels=192, channel_mult=[1,2,3,4])
@@ -159,7 +155,7 @@ def main(**kwargs):
     # Training options.
     c.total_kimg = max(int(opts.duration * 1000), 1)
     c.ema_halflife_kimg = int(opts.ema * 1000)
-    c.update(rbatch=opts.rbatch, stf=opts.stf, pfgm=opts.pfgm, D=opts.aug_dim, pfgmpp=opts.pfgmpp)
+    c.update(rbatch=opts.rbatch, stf=opts.stf, D=opts.aug_dim, pfgmpp=opts.pfgmpp)
     c.update(batch_size=opts.batch, batch_gpu=opts.batch_gpu)
     c.update(loss_scaling=opts.ls, cudnn_benchmark=opts.bench)
     c.update(kimg_per_tick=opts.tick, snapshot_ticks=opts.snap, state_dump_ticks=opts.dump)

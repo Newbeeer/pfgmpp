@@ -198,7 +198,6 @@ class EDMLoss:
         distance = distance[:, :, None]
         # Normalize the coefficients (effectively multiply by c(\tilde{x}) in the paper)
         coeff = distance / (torch.sum(distance, dim=1, keepdim=True) + 1e-7)
-        print("pfgm weights:", torch.sort(coeff.squeeze(), dim=1, descending=True)[0][:, 0])
         diff = - (perturbed_samples_vec.unsqueeze(1) - real_samples_vec)
 
         # Calculate empirical Poisson field (N+D dimension in the augmented space)
