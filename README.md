@@ -149,12 +149,13 @@ You can train new models using `train.py`. For example:
 torchrun --standalone --nproc_per_node=8 train.py --outdir=training-runs --name exp_name \
 --data=datasets/cifar10-32x32.zip --cond=0 --arch=arch \
 --pfgmpp=1 --batch 512 \
---aug_dim aug_dim
+--aug_dim aug_dim (--resume resume_path)
 
 exp_name: name of experiments
 aug_dim: D (additional dimensions)  
 arch: model architectures. options: ncsnpp | ddpmpp
 pfgmpp: use PFGM++ framework, otherwise diffusion models (D\to\infty case). options: 0 | 1
+resume_path: path to the resuming checkpoint
 ```
 
 The above example uses the default batch size of 512 images (controlled by `--batch`) that is divided evenly among 8 GPUs (controlled by `--nproc_per_node`) to yield 64 images per GPU. Training large models may run out of GPU memory; the best way to avoid this is to limit the per-GPU batch size, e.g., `--batch-gpu=32`. This employs gradient accumulation to yield the same results as using full per-GPU batches. See [`python train.py --help`](./docs/train-help.txt) for the full list of options.
