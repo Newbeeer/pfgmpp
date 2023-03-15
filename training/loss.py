@@ -113,7 +113,7 @@ class EDMLoss:
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
             if self.opts.lsun:
                 # use larger sigma for high-resolution datasets
-                sigma *= 378. / 80
+                sigma *= 380. / 80
 
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
@@ -142,7 +142,7 @@ class EDMLoss:
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
             if self.opts.lsun:
                 # use larger sigma for high-resolution datasets
-                sigma *= 378. / 80.
+                sigma *= 380. / 80.
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma
