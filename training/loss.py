@@ -114,7 +114,7 @@ class EDMLoss:
             if self.opts.lsun:
                 # use larger sigma for high-resolution datasets
                 sigma *= 378. / 80
-                
+
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
             samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
