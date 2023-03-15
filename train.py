@@ -58,11 +58,13 @@ def parse_int_list(s):
 @click.option('--batch-gpu',     help='Limit batch size per GPU', metavar='INT',                    type=click.IntRange(min=1))
 @click.option('--cbase',         help='Channel multiplier  [default: varies]', metavar='INT',       type=int)
 @click.option('--cres',          help='Channels per resolution  [default: varies]', metavar='LIST', type=parse_int_list)
+@click.option('--nblock',        help='number of blocks  [default: varies]', metavar='INT',       type=int)
 @click.option('--lr',            help='Learning rate', metavar='FLOAT',                             type=click.FloatRange(min=0, min_open=True), default=10e-4, show_default=True)
 @click.option('--ema',           help='EMA half-life', metavar='MIMG',                              type=click.FloatRange(min=0), default=0.5, show_default=True)
 @click.option('--dropout',       help='Dropout probability', metavar='FLOAT',                       type=click.FloatRange(min=0, max=1), default=0.13, show_default=True)
 @click.option('--augment',       help='Augment probability', metavar='FLOAT',                       type=click.FloatRange(min=0, max=1), default=0.12, show_default=True)
 @click.option('--xflip',         help='Enable dataset x-flips', metavar='BOOL',                     type=bool, default=False, show_default=True)
+@click.option('--lsun',          help='Train on LSUN 256x256 datasets', metavar='BOOL',            type=bool, default=False, show_default=True)
 
 # Performance-related.
 @click.option('--fp16',          help='Enable mixed-precision training', metavar='BOOL',            type=bool, default=False, show_default=True)
@@ -146,6 +148,8 @@ def main(**kwargs):
         c.network_kwargs.model_channels = opts.cbase
     if opts.cres is not None:
         c.network_kwargs.channel_mult = opts.cres
+    if opts.nblock is not None:
+        c.network_kwargs.num_blocks = opts.nblock
     if opts.augment:
         c.augment_kwargs = dnnlib.EasyDict(class_name='training.augment.AugmentPipe', p=opts.augment)
         c.augment_kwargs.update(xflip=1e8, yflip=1, scale=1, rotate_frac=1, aniso=1, translate_frac=1)
@@ -192,21 +196,14 @@ def main(**kwargs):
     # Pick output directory.
     if dist.get_rank() != 0:
         c.run_dir = None
-    elif opts.nosubdir:
-        c.run_dir = opts.outdir
     else:
-        prev_run_dirs = []
-        if os.path.isdir(opts.outdir):
-            prev_run_dirs = [x for x in os.listdir(opts.outdir) if os.path.isdir(os.path.join(opts.outdir, x))]
-        prev_run_ids = [re.match(r'^\d+', x) for x in prev_run_dirs]
-        prev_run_ids = [int(x.group()) for x in prev_run_ids if x is not None]
-        cur_run_id = max(prev_run_ids, default=-1) + 1
-        c.run_dir = os.path.join(opts.outdir, f'{cur_run_id:05d}-{desc}')
-        assert not os.path.exists(c.run_dir)
+        c.run_dir = opts.outdir
+
 
     if opts.name:
         c.run_dir = os.path.join(opts.outdir, opts.name)
 
+    c.opts = opts
     # Print options.
     dist.print0()
     dist.print0('Training options:')

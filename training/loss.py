@@ -111,7 +111,10 @@ class EDMLoss:
 
             rnd_normal = torch.randn(images.shape[0], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
-
+            if self.opts.lsun:
+                # use larger sigma for high-resolution datasets
+                sigma *= 378. / 80
+                
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
             samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
@@ -137,6 +140,9 @@ class EDMLoss:
         else:
             rnd_normal = torch.randn([images.shape[0], 1, 1, 1], device=images.device)
             sigma = (rnd_normal * self.P_std + self.P_mean).exp()
+            if self.opts.lsun:
+                # use larger sigma for high-resolution datasets
+                sigma *= 378. / 80.
             weight = (sigma ** 2 + self.sigma_data ** 2) / (sigma * self.sigma_data) ** 2
             y, augment_labels = augment_pipe(images) if augment_pipe is not None else (images, None)
             n = torch.randn_like(y) * sigma

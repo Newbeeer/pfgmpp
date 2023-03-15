@@ -35,6 +35,7 @@ def edm_sampler(
 
     N = net.img_channels * net.img_resolution * net.img_resolution
     # Adjust noise levels based on what's supported by the network.
+    print("net sigma max:", net.sigma_max)
     sigma_min = max(sigma_min, net.sigma_min)
     sigma_max = min(sigma_max, net.sigma_max)
 
