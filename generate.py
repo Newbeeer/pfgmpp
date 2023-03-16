@@ -215,7 +215,7 @@ class StackedRandomGenerator:
             if N < 256 * 256 * 3:
                 sigma_max = 80
             else:
-                raise NotImplementedError
+                sigma_max = kwargs['sigma_max']
 
             sample_norm = torch.sqrt(inverse_beta) * sigma_max * np.sqrt(D)
             gaussian = torch.randn(N).to(sample_norm.device)
@@ -352,7 +352,8 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                                     N=N,
                                     D=aug_dim,
                                     pfgmpp=pfgmpp,
-                                    device=device)
+                                    device=device,
+                                    sigma_max=sampler_kwargs['sigma_max'])
             else:
                 latents = rnd.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
                                     device=device)
