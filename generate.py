@@ -353,7 +353,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
                                     D=aug_dim,
                                     pfgmpp=pfgmpp,
                                     device=device,
-                                    sigma_max=sampler_kwargs['sigma_max'])
+                                    sigma_max=sampler_kwargs['sigma_max'] if (N > 256 * 256 * 3) else 80)
             else:
                 latents = rnd.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution],
                                     device=device)
