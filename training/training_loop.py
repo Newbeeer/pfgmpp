@@ -215,7 +215,7 @@ def training_loop(
 
         # Save full dump of the training state.
         if (state_dump_ticks is not None) and (done or cur_tick % state_dump_ticks == 0) and cur_tick != 0 and dist.get_rank() == 0:
-            torch.save(dict(optimizer_state=optimizer.state_dict(), step=cur_nimg, ema=ema),
+            torch.save(dict(optimizer_state=optimizer.state_dict(), step=cur_nimg, ema=ema, net=net),
                        os.path.join(run_dir, f'training-state-{cur_nimg//1000:06d}.pt'))
 
         # Update logs.
