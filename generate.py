@@ -295,7 +295,7 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
     rank_batches = all_batches[dist.get_rank() :: dist.get_world_size()]
 
     if use_pickle:
-        stats = glob.glob(os.path.join(outdir, "network-snapshot-*.pkl"))
+        stats = glob.glob(os.path.join(outdir, "training-state-*.pkl"))
     else:
         stats = glob.glob(os.path.join(outdir, "training-state-*.pt"))
 

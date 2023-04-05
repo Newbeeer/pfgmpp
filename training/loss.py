@@ -61,6 +61,9 @@ class VELoss:
             # Sampling form inverse-beta distribution
             samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
                                           size=images.shape[0]).astype(np.double)
+
+            samples_norm = np.clip(samples_norm, 1e-6, 1-1e-6)
+
             inverse_beta = samples_norm / (1 - samples_norm + 1e-8)
             inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
             # Sampling from p_r(R) by change-of-variable
@@ -119,6 +122,9 @@ class EDMLoss:
             # Sampling form inverse-beta distribution
             samples_norm = np.random.beta(a=self.N / 2., b=self.D / 2.,
                                           size=images.shape[0]).astype(np.double)
+
+            samples_norm = np.clip(samples_norm, 1e-6, 1-1e-6)
+
             inverse_beta = samples_norm / (1 - samples_norm +1e-8)
             inverse_beta = torch.from_numpy(inverse_beta).to(images.device).double()
             # Sampling from p_r(R) by change-of-variable
