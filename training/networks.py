@@ -688,7 +688,7 @@ class EDMPrecond(torch.nn.Module):
         self.model = globals()[model_type](img_resolution=img_resolution, in_channels=img_channels,
                                            out_channels=img_channels, label_dim=label_dim, **model_kwargs)
 
-    def forward(self, x, sigma, class_labels=None, D=128, force_fp32=False, sigma_old=None, **model_kwargs):
+    def forward(self, x, sigma, class_labels=None, force_fp32=False,  **model_kwargs):
 
         x = x.to(torch.float32)
 
