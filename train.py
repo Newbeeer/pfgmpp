@@ -212,9 +212,6 @@ def main(**kwargs):
         c.run_dir = os.path.join(opts.outdir, opts.name)
 
 
-    if opts.name:
-        c.run_dir = os.path.join(opts.outdir, opts.name)
-
     c.opts = opts
     # Print options.
     dist.print0()
