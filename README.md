@@ -8,6 +8,10 @@ by [Yilun Xu](http://yilun-xu.com), [Ziming Liu](https://kindxiaoming.github.io/
 
 [[Slide](https://www.dropbox.com/s/0cgacob54vw7boe/jizhi_5_13_22.pptx?dl=0)]
 
+|           CIFAR-10           |          FFHQ-64           |        LSUN-Church-256        |
+| :--------------------------: | :------------------------: | :---------------------------: |
+| ![cifar_2](assets/cifar.gif) | ![ffhq_2](assets/ffhq.gif) | ![lsun_2](./assets/lsun.gif ) |
+
 
 
 😇 *Improvements over [PFGM](https://github.com/Newbeeer/Poisson_flow) / Diffusion Models:*

@@ -48,7 +48,9 @@ def edm_sampler(
         x_next = latents.to(torch.float64)
     else:
         x_next = latents.to(torch.float64) * t_steps[0]
-        # Main sampling loop.
+
+    whole_trajectory = torch.zeros((num_steps, *x_next.shape), dtype=torch.float64)
+    # Main sampling loop.
     for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
 
         x_cur = x_next
@@ -67,7 +69,10 @@ def edm_sampler(
             denoised = net(x_next, t_next, class_labels).to(torch.float64)
             d_prime = (x_next - denoised) / t_next
             x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-    return x_next
+
+        whole_trajectory[i] = x_next
+
+    return x_next, whole_trajectory
 
 #----------------------------------------------------------------------------
 # Generalized ablation sampler, representing the superset of all sampling
@@ -370,14 +375,38 @@ def main(ckpt, end_ckpt, outdir, subdirs, seeds, class_idx, max_batch_size, save
             have_ablation_kwargs = any(x in sampler_kwargs for x in ['solver', 'discretization', 'schedule', 'scaling'])
             sampler_fn = ablation_sampler if have_ablation_kwargs else edm_sampler
             with torch.no_grad():
-                images = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like, pfgmpp=pfgmpp,  **sampler_kwargs)
+                images, traj = sampler_fn(net, latents, class_labels, randn_like=rnd.randn_like, pfgmpp=pfgmpp,  **sampler_kwargs)
 
             if save_images:
                 # save a small batch of images
                 images_ = (images + 1) / 2.
-                print("len:", len(images))
-                image_grid = make_grid(images_, nrow=int(np.sqrt(len(images))))
-                save_image(image_grid, os.path.join(outdir, f'ode_images_{ckpt_num}.png'))
+                traj_ = (traj + 1) / 2.
+
+                #traj_ = traj_[4:]
+                traj_ = traj_.transpose(0, 1)
+                num_steps = traj_.shape[1]
+                num_img = traj_.shape[0]
+                # traj_ = traj_.reshape(traj_.shape[0] * traj_.shape[1], traj_.shape[2], traj_.shape[3], traj_.shape[4])
+
+                # save to gif
+                imgs = []
+                from PIL import Image
+                for i in range(num_steps):
+                    image_grid = make_grid(traj_[:, i], nrow=int(np.sqrt(num_img)), padding=0)
+                    im = Image.fromarray(
+                        image_grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy())
+                    imgs.append(im)
+
+
+                imgs[0].save(os.path.join(outdir, 'vis', "movie.gif"), save_all=True, append_images=imgs[1:], duration=1,
+                 loop=0)
+
+                #image_grid = make_grid(traj_, nrow=num_steps, padding=0)
+                #save_image(image_grid, os.path.join(outdir, 'vis', f'ode_images_{ckpt_num}.png'))
+
+                # print("len:", len(images))
+                # image_grid = make_grid(images_, nrow=int(np.sqrt(len(images))), padding=0)
+                # save_image(image_grid, os.path.join(outdir, 'vis', f'ode_images_{ckpt_num}.png'))
                 exit(0)
                 break
             # Save images.
